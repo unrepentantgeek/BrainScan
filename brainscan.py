@@ -7,7 +7,7 @@ import subprocess
 # import pyunit
 import struct
 
-#from Adafruit_CharLCD import Adafruit_CharLCD
+from Adafruit_CharLCD import Adafruit_CharLCD
 from datetime import datetime
 from subprocess import * 
 from time import sleep, strftime
@@ -76,16 +76,11 @@ BW_PIN_B_TEMP = 6 # Analog
 BW_PIN_E_TEMP = 7 # Analog
 BW_PIN_FAN = 31
 BW_PIN_STATUS = 19
-# stepper pins (step, direction, enable, attenuate, endstop, coil_a, coil_b, name)
+# stepper pins (step, dir, enable, attenuate, endstop, coil_a, coil_b, name)
 BW_X_AXIS = (3, 5, 4, 2, 35, 0x40, 0x41, "X")
 BW_Y_AXIS = (7, 9, 8, 6, 34, 0x42, 0x43, "Y")
 BW_Z_AXIS = (11, 13, 12, 10, 33, 0x44, 0x45, "Z")
 BW_E_AXIS = (15, 17, 16, 14, -1, 0x46, 0x47, "E")
-
-# Useful constants
-CW = 0
-CCW = 1
-
 STEP = 0
 DIR = 1
 EN = 2
@@ -94,6 +89,11 @@ ENDSTOP = 4
 COIL_A = 5
 COIL_B = 6
 NAME = 7
+
+# Useful constants
+CW = 0
+CCW = 1
+
 
 brainwave_layout = {
   'digital' : tuple(x for x in range(38)),
@@ -143,7 +143,7 @@ class BrainScan(object):
     self._harness.i2c_write(0x47, 0x00, bytearray(b'\x29\xff'))
     self._harness.i2c_write(0b01001111, 0x00, bytearray(b'9\xff'))
 
-    # Set RESET and HWB pins to high impedence
+    # Set RESET, HWB and BUTTON pins to high impedence
     self._reset = self._harness.get_pin("d:%s:i" % PIN_RESET)
     self._hwb = self._harness.get_pin("d:%s:i" % PIN_HWB)
     self._button = self._harness.get_pin("d:%s:i" % PIN_BUTTON)
@@ -299,6 +299,8 @@ class BrainScan(object):
       target.enableAxis(axis)
       sleep(0.1)
       (coil_a, coil_b) = self.readAxisCurrent(axis)
+      if ( (coil_a > 0.7) or (coil_b > 0.7) ):
+        raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
 
       # What step are we at?
       start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
@@ -311,6 +313,8 @@ class BrainScan(object):
         target.stepAxis(axis, CW)
         sleep(0.1)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
+        if ( (coil_a > 0.7) or (coil_b > 0.7) ):
+          raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
       print "Errors: %s" % errors
       if errors > 0:
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
@@ -325,8 +329,8 @@ class BrainScan(object):
   def runTestSuite(self, target):
     idle_current = self.readTargetCurrent()
     print "idle current: %s" % idle_current
-    #if idle_current > 0.2:
-    #  raise BrainScanTestFailure("idle current too high: %s" % idle_current)
+    if idle_current > 0.2:
+      raise BrainScanTestFailure("idle current too high: %s" % idle_current)
     
     target.assertFan(True)
     sleep(0.1)
@@ -338,16 +342,25 @@ class BrainScan(object):
     if fan_current < 0.08:
       raise BrainScanTestFailure("fan current too low: %s" % fan_current)
     
-    #target.assertBedHeat(True)
-    #sleep(0.1)
-    #bed_current = self.readTargetCurrent() - idle_current
-    #target.assertBedHeat(False)
-    #print "bed current: %s" % bed_current
-    #if bed_current > 13:
-    #  raise BrainScanTestFailure("bed current too high: %s" % bed_current)
-    #if bed_current < 10:
-    #  raise BrainScanTestFailure("bed current too low: %s" % bed_current)
-    
+    target.assertBedHeat(True)
+    sleep(0.1)
+    bed_current = self.readTargetCurrent() - idle_current
+    target.assertBedHeat(False)
+    print "bed current: %s" % bed_current
+    if bed_current > 13:
+      raise BrainScanTestFailure("bed current too high: %s" % bed_current)
+    if bed_current < 10:
+      raise BrainScanTestFailure("bed current too low: %s" % bed_current)
+      
+    sleep(0.1)
+    self.testAxis(target, BW_X_AXIS)
+    sleep(0.1)
+    self.testAxis(target, BW_Y_AXIS)
+    sleep(0.1)
+    self.testAxis(target, BW_Z_AXIS)
+    sleep(0.1)
+    self.testAxis(target, BW_E_AXIS)
+
     target.assertExtruderHeat(True)
     sleep(0.1)
     extruder_current = self.readTargetCurrent() - idle_current
@@ -357,15 +370,6 @@ class BrainScan(object):
       raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
     if extruder_current < 1.5:
       raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
-      
-    self.testAxis(target, BW_X_AXIS)
-    sleep(0.1)
-    self.testAxis(target, BW_Y_AXIS)
-    sleep(0.1)
-    self.testAxis(target, BW_Z_AXIS)
-    sleep(0.1)
-    # try flushing the i2c buffer here
-    self.testAxis(target, BW_E_AXIS)
 
 
 class Brainwave(object):
@@ -375,6 +379,9 @@ class Brainwave(object):
     # Iterator keeps analog reads from overflowing the serial port buffer
     self._it = pyfirmata.util.Iterator(self._target)
     self._it.start()
+
+    self._bed_heat = self._target.get_pin("d:%s:o" % BW_PIN_B_HEAT)
+    self._ext_heat = self._target.get_pin("d:%s:o" % BW_PIN_E_HEAT)
     
     # Make sure things start off right (i.e. off)
     self.assertBedHeat(False)
@@ -388,10 +395,10 @@ class Brainwave(object):
     self._e_temp = self._target.get_pin("a:%s:i" % BW_PIN_E_TEMP)
 
   def assertBedHeat(self, state):
-    self._target.digital[BW_PIN_B_HEAT].write(state)
+    self._bed_heat.write(state)
 
   def assertExtruderHeat(self, state):
-    self._target.digital[BW_PIN_E_HEAT].write(state)
+    self._ext_heat.write(state)
 
   def assertFan(self, state):
     self._target.digital[BW_PIN_FAN].write(state)
@@ -431,29 +438,31 @@ class Brainwave(object):
   def readExtruderTemp(self):
     return self._target.analog[BW_E_HEAT].read()
 
-#lcd = Adafruit_CharLCD()
-#lcd.clear()
-#lcd.message("  Brainwave\n Initializing")
 
-
+lcd = Adafruit_CharLCD()
+lcd.clear()
 scanner = None
 quit = False
 
 while not quit:
   try:
+    lcd.message("   Brainscan\n Initializing")
     scanner = BrainScan(PORT)
     while not quit:
       try:
-        print "Starting test cycle"
-        
         scanner.setLEDColor(0xFFFFFF)
+        lcd.clear()
+        lcd.message(" Starting Test")
+        print "Starting test"
+        
         scanner.powerTargetOn()
+
         # Perform chip erase
-#        subprocess.check_call(AVRDUDE + ['-e'])
+        subprocess.check_call(AVRDUDE + ['-e'])
         # Set fuses for flashing
-#        subprocess.check_call(AVRDUDE + FUSES)
+        subprocess.check_call(AVRDUDE + FUSES)
         # Write firmata
-#        subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
+        subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
         #subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:Sprinter.cpp.hex:i'])
       #  # Reset fuses and writelock bootloader area
       #  subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
@@ -462,6 +471,7 @@ while not quit:
         sleep(2) # give the target a chance to start
         target = Brainwave("/dev/ttyACM1")
 
+        #scanner.runTestSuite(target)
         code.interact(local=locals())
         quit = True
         
@@ -475,12 +485,15 @@ while not quit:
         print "Test failure"
         scanner.powerTargetDown()
         scanner.setLEDColor(0xFF0000)
+        lcd.clear()
+        lcd.message(" Test Failure\n%s" % e.msg)
         print e.msg
         sleep(10)
   except subprocess.CalledProcessError:
     raise BrainScanTestFailure("avrdude failure")
     scanner.setLEDColor(0x000000)
   finally:
+    lcd.clear()
     if scanner:
       scanner.powerTargetDown()
       scanner.terminate()
