@@ -52,9 +52,9 @@ EXT_POT_REG = 0
 BED_POT_REG = 7
 
 # jig digital pins
-PIN_X_MIN = 2
+PIN_Z_MIN = 2
 PIN_Y_MIN = 3
-PIN_Z_MIN = 4
+PIN_X_MIN = 4
 PIN_HWB = 5
 PIN_RESET = 6
 PIN_BUTTON = 7
@@ -292,11 +292,12 @@ class BrainScan(object):
       return
     
     endstop.write(0)
-    if taraget.readEndstop(axis) != 0:
+    sleep(0.05)
+    if target.readEndstop(axis) != 0:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
     endstop.write(1)
-    print "endstop write, sense: %s" % target.readEndstop(axis)
-    if taraget.readEndstop(axis) != 1:
+    sleep(0.05)
+    if target.readEndstop(axis) != 1:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
   
   def testAxis(self, target, axis):
