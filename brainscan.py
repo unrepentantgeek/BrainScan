@@ -6,11 +6,11 @@ import pyfirmata
 import subprocess
 # import pyunit
 import struct
+import time
 
 from Adafruit_CharLCD import Adafruit_CharLCD
 from datetime import datetime
 from subprocess import * 
-from time import sleep, strftime
 
 # BrainScan jig settings
 PORT = '/dev/ttyACM0'
@@ -189,7 +189,7 @@ class BrainScan(object):
       self._12v_sense.enable_reporting()
       self._5v_sense.enable_reporting()
       self._relay.write(1)
-      sleep(0.5) # let power stabilize
+      time.sleep(0.5) # let power stabilize
 
       vmot = self._12v_sense.read() * COEFFICIENT_12V
       print "vmotor: %s" % vmot
@@ -226,7 +226,7 @@ class BrainScan(object):
     """Reset the target board."""
     self._reset.mode = OUTPUT
     self._reset.write(0)
-    sleep(0.5)
+    time.sleep(0.5)
     self._reset.mode = INPUT
 
   def activateBootloader(self):
@@ -235,9 +235,9 @@ class BrainScan(object):
     self._hwb.write(0)
     self._reset.mode = OUTPUT
     self._reset.write(0)
-    sleep(0.1)
+    time.sleep(0.1)
     self._reset.mode = INPUT
-    sleep(0.1)
+    time.sleep(0.1)
     self._hwb.mode = INPUT
 
   def setLEDColor(self, color):
@@ -292,11 +292,11 @@ class BrainScan(object):
       return
     
     endstop.write(0)
-    sleep(0.05)
+    time.sleep(0.05)
     if target.readEndstop(axis) != 0:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
     endstop.write(1)
-    sleep(0.05)
+    time.sleep(0.05)
     if target.readEndstop(axis) != 1:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
   
@@ -318,7 +318,7 @@ class BrainScan(object):
     
     try:
       target.enableAxis(axis)
-      sleep(0.1)
+      time.sleep(0.1)
       (coil_a, coil_b) = self.readAxisCurrent(axis)
       if ( (coil_a > 0.7) or (coil_b > 0.7) ):
         raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
@@ -332,7 +332,7 @@ class BrainScan(object):
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
         target.stepAxis(axis, CW)
-        sleep(0.1)
+        time.sleep(0.1)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
@@ -346,7 +346,7 @@ class BrainScan(object):
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
         target.stepAxis(axis, CCW)
-        sleep(0.1)
+        time.sleep(0.1)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
@@ -357,6 +357,43 @@ class BrainScan(object):
       
     finally:
       target.disableAxis(axis)
+
+  def testResetButton(self):
+    """Only call when the target object doesn't exist."""
+    self._reset.mode = INPUT
+    if self._reset.read() is False:
+      raise BrainScanTestFailure("RESET pin LOW when not pressed")
+    print "Please press the PROGRAM button"
+    timeout = time.time() + 5
+    count = 0
+    while timeout > time.time():
+      if self._reset.read() is False:
+        count += 1
+      else:
+        count = 0
+      if count > 50:
+        print "RESET button test passed"
+        break
+    if timeout < time.time():
+      raise BrainScanTestFailure("RESET button test timed out")
+
+  def testProgramButton(self):
+    self._hwb.mode = INPUT
+    if self._hwb.read() is False:
+      raise BrainScanTestFailure("HWB pin LOW when not pressed")
+    print "Please press the PROGRAM button"
+    timeout = time.time() + 5
+    count = 0
+    while timeout > time.time():
+      if self._hwb.read() is False:
+        count += 1
+      else:
+        count = 0
+      if count > 50:
+        print "PROGRAM button test passed"
+        break
+    if timeout < time.time():
+      raise BrainScanTestFailure("PROGRAM button test timed out")
     
   def runTestSuite(self, target):
     idle_current = self.readTargetCurrent()
@@ -365,7 +402,7 @@ class BrainScan(object):
       raise BrainScanTestFailure("idle current too high: %s" % idle_current)
     
     target.assertFan(True)
-    sleep(0.1)
+    time.sleep(0.1)
     fan_current = self.readTargetCurrent() - idle_current
     target.assertFan(False)
     print "fan current: %s" % fan_current
@@ -375,7 +412,7 @@ class BrainScan(object):
       raise BrainScanTestFailure("fan current too low: %s" % fan_current)
     
     target.assertBedHeat(True)
-    sleep(0.1)
+    time.sleep(0.1)
     bed_current = self.readTargetCurrent() - idle_current
     target.assertBedHeat(False)
     print "bed current: %s" % bed_current
@@ -384,17 +421,17 @@ class BrainScan(object):
     if bed_current < 10:
       raise BrainScanTestFailure("bed current too low: %s" % bed_current)
       
-    sleep(0.1)
+    time.sleep(0.1)
     self.testAxis(target, BW_X_AXIS)
-    sleep(0.1)
+    time.sleep(0.1)
     self.testAxis(target, BW_Y_AXIS)
-    sleep(0.1)
+    time.sleep(0.1)
     self.testAxis(target, BW_Z_AXIS)
-    sleep(0.1)
+    time.sleep(0.1)
     self.testAxis(target, BW_E_AXIS)
 
     target.assertExtruderHeat(True)
-    sleep(0.1)
+    time.sleep(0.1)
     extruder_current = self.readTargetCurrent() - idle_current
     target.assertExtruderHeat(False)
     print "extruder current: %s" % extruder_current
@@ -402,6 +439,10 @@ class BrainScan(object):
       raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
     if extruder_current < 1.5:
       raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
+
+    self.testEndstop(target, BW_X_AXIS)
+    self.testEndstop(target, BW_Y_AXIS)
+    self.testEndstop(target, BW_Z_AXIS)
 
 
 class Brainwave(object):
@@ -459,7 +500,7 @@ class Brainwave(object):
     """stepper driver steps on rising edge"""
     self._target.digital[axis[DIR]].write(direction)
     self._target.digital[axis[STEP]].write(0)
-    sleep(0.01)  # do we need this sleep?
+    time.sleep(0.01)  # do we need this sleep?
     self._target.digital[axis[STEP]].write(1)
 
   def readEndstop(self, axis):
@@ -477,9 +518,10 @@ lcd.clear()
 scanner = None
 quit = False
 
+lcd.message("   Brainscan\n Initializing")
+
 while not quit:
   try:
-    lcd.message("   Brainscan\n Initializing")
     scanner = BrainScan(PORT)
     while not quit:
       try:
@@ -500,20 +542,21 @@ while not quit:
       #  # Reset fuses and writelock bootloader area
       #  subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
       #  scanner.activateBootloader()
-        
-        sleep(2) # give the target a chance to start
+
+        time.sleep(2) # give the target a chance to start
         target = Brainwave("/dev/ttyACM1")
 
         #scanner.runTestSuite(target)
         code.interact(local=locals())
         quit = True
-        
+
         # Test the board:
+        
         
 
         scanner.powerTargetDown()
         scanner.setLEDColor(0x00FF00)
-        sleep(2)
+        time.sleep(2)
       except BrainScanTestFailure as e:
         print "Test failure"
         scanner.powerTargetDown()
@@ -521,10 +564,10 @@ while not quit:
         lcd.clear()
         lcd.message(" Test Failure\n%s" % e.msg)
         print e.msg
-        sleep(10)
+        time.sleep(10)
   except subprocess.CalledProcessError:
     raise BrainScanTestFailure("avrdude failure")
-    scanner.setLEDColor(0x000000)
+    scanner.setLEDColor(0xFF0000)
   finally:
     lcd.clear()
     if scanner:
