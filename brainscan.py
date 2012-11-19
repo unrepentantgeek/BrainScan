@@ -284,9 +284,9 @@ class BrainScan(object):
       return
     if axis[NAME] == "X":
       endstop = self._x_min
-    else if axis[NAME] == "Y":
+    elif axis[NAME] == "Y":
       endstop = self._y_min
-    else if axis[NAME] == "Z":
+    elif axis[NAME] == "Z":
       endstop = self._z_min
     else:
       return
