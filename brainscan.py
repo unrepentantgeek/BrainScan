@@ -340,6 +340,18 @@ class BrainScan(object):
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
 
       # TODO: test reverse direction
+      for step in range(start, start - 16, -1):
+        print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
+        if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
+          errors += 1
+        target.stepAxis(axis, CCW)
+        sleep(0.1)
+        (coil_a, coil_b) = self.readAxisCurrent(axis)
+        if ( (coil_a > 0.7) or (coil_b > 0.7) ):
+          raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
+      print "Errors: %s" % errors
+      if errors > 0:
+        raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
       # TODO: test attenuation        
       
     finally:
