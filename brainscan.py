@@ -290,14 +290,14 @@ class BrainScan(object):
       endstop = self._z_min
     else:
       return
-
-    endstop.mode = INPUT
-    print "endstop input, sense: %s" % target.readEndstop(axis)
-    endstop.mode = OUTPUT
-    print "endstop output, sense: %s" % target.readEndstop(axis)
+    
+    endstop.write(0)
+    if taraget.readEndstop(axis) != 0:
+      raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
     endstop.write(1)
     print "endstop write, sense: %s" % target.readEndstop(axis)
-    
+    if taraget.readEndstop(axis) != 1:
+      raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
   
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
