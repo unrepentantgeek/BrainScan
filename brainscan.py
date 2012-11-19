@@ -52,9 +52,9 @@ EXT_POT_REG = 0
 BED_POT_REG = 7
 
 # jig digital pins
-PIN_Z_MIN = 2
+PIN_X_MIN = 2
 PIN_Y_MIN = 3
-PIN_X_MIN = 4
+PIN_Z_MIN = 4
 PIN_HWB = 5
 PIN_RESET = 6
 PIN_BUTTON = 7
@@ -279,6 +279,26 @@ class BrainScan(object):
     return (self.readINA219Current(axis[COIL_A]),
             self.readINA219Current(axis[COIL_B]))
   
+  def testEndstop(self, target, axis):
+    if (axis[ENDSTOP] < 0):
+      return
+    if axis[NAME] == "X":
+      endstop = self._x_min
+    else if axis[NAME] == "Y":
+      endstop = self._y_min
+    else if axis[NAME] == "Z":
+      endstop = self._z_min
+    else:
+      return
+
+    endstop.mode = INPUT
+    print "endstop input, sense: %s" % target.readEndstop(axis)
+    endstop.mode = OUTPUT
+    print "endstop output, sense: %s" % target.readEndstop(axis)
+    endstop.write(1)
+    print "endstop write, sense: %s" % target.readEndstop(axis)
+    
+  
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
     print "Testing %s Axis" % axis[NAME]
@@ -319,12 +339,11 @@ class BrainScan(object):
       if errors > 0:
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
 
-      # TODO: test attenuation
+      # TODO: test reverse direction
+      # TODO: test attenuation        
       
     finally:
       target.disableAxis(axis)
-    
-    # test endstops
     
   def runTestSuite(self, target):
     idle_current = self.readTargetCurrent()
@@ -382,6 +401,7 @@ class Brainwave(object):
 
     self._bed_heat = self._target.get_pin("d:%s:o" % BW_PIN_B_HEAT)
     self._ext_heat = self._target.get_pin("d:%s:o" % BW_PIN_E_HEAT)
+    self._fan = self._target.get_pin("d:%s:o" % BW_PIN_FAN)
     
     # Make sure things start off right (i.e. off)
     self.assertBedHeat(False)
@@ -401,7 +421,7 @@ class Brainwave(object):
     self._ext_heat.write(state)
 
   def assertFan(self, state):
-    self._target.digital[BW_PIN_FAN].write(state)
+    self._fan.write(state)
 
   def setupAxis(self, axis):
     self._target.digital[axis[STEP]].mode = OUTPUT
@@ -409,6 +429,7 @@ class Brainwave(object):
     self._target.digital[axis[ATT]].mode = OUTPUT
     self._target.digital[axis[EN]].mode = OUTPUT
     self._target.digital[axis[ENDSTOP]].mode = INPUT
+    self._target.digital[axis[ENDSTOP]].write(1) # enable pullup
     self.disableAxis(axis)
 
   def enableAxis(self, axis, attenuate=False):
@@ -422,13 +443,12 @@ class Brainwave(object):
     self._target.digital[axis[EN]].write(1);
 
   def stepAxis(self, axis, direction):
+    """stepper driver steps on rising edge"""
     self._target.digital[axis[DIR]].write(direction)
     self._target.digital[axis[STEP]].write(0)
-    sleep(0.01)
+    sleep(0.01)  # do we need this sleep?
     self._target.digital[axis[STEP]].write(1)
-    sleep(0.01)
-    self._target.digital[axis[STEP]].write(0)
-  
+
   def readEndstop(self, axis):
     return self._target.digital[axis[ENDSTOP]].read()
 
