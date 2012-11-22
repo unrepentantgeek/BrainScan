@@ -27,6 +27,7 @@ AVR_CMD = '/usr/bin/avrdude'
 AVRISP = 'avrispmkII'
 AVR_MCU = 'at90usb646'
 AVRDUDE = [AVR_CMD, '-p', AVR_MCU, '-c', AVRISP, '-P', 'usb']
+AVRDUDEBOOT = [AVR_CMD, '-p', AVR_MCU, '-c', 'avr109', '-P', '/dev/ttyACM1']
 FUSES = ['-U', 'lfuse:w:0xde:m', '-U', 'hfuse:w:0x9b:m', '-U', 'efuse:w:0xf0:m']
 
 # Pin modes.
@@ -323,10 +324,9 @@ class BrainScan(object):
       if ( (coil_a > 0.7) or (coil_b > 0.7) ):
         raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
 
-      # What step are we at?
-      start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
       errors = 0
 
+      start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
       for step in range(start, start + 16):
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
@@ -340,7 +340,7 @@ class BrainScan(object):
       if errors > 0:
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
 
-      # TODO: test reverse direction
+      start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
       for step in range(start, start - 16, -1):
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
@@ -351,9 +351,23 @@ class BrainScan(object):
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
       print "Errors: %s" % errors
+
+      target.enableAxis(axis, attenuate=True)
+      time.sleep(0.1)
+      start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
+      for step in range(start, start + 16):
+        print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
+        if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
+          errors += 1
+        target.stepAxis(axis, CW)
+        time.sleep(0.1)
+        (coil_a, coil_b) = self.readAxisCurrent(axis)
+        if ( (coil_a > 0.7) or (coil_b > 0.7) ):
+          raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
+
+      print "Errors: %s" % errors
       if errors > 0:
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
-      # TODO: test attenuation        
       
     finally:
       target.disableAxis(axis)
@@ -468,6 +482,12 @@ class Brainwave(object):
     self._b_temp = self._target.get_pin("a:%s:i" % BW_PIN_B_TEMP)
     self._e_temp = self._target.get_pin("a:%s:i" % BW_PIN_E_TEMP)
 
+  def terminate(self):
+    if self._target:
+      self._target.exit()
+      del self._target
+
+
   def assertBedHeat(self, state):
     self._bed_heat.write(state)
 
@@ -538,10 +558,6 @@ while not quit:
         subprocess.check_call(AVRDUDE + FUSES)
         # Write firmata
         subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
-        #subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:Sprinter.cpp.hex:i'])
-      #  # Reset fuses and writelock bootloader area
-      #  subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
-      #  scanner.activateBootloader()
 
         time.sleep(2) # give the target a chance to start
         target = Brainwave("/dev/ttyACM1")
@@ -550,10 +566,21 @@ while not quit:
         code.interact(local=locals())
         quit = True
 
-        # Test the board:
+        target.terminate()
+        del target
         
+        # write bootloader
+        subprocess.check_call(AVRDUDE + ['-U', 'flash:w:BootloaderCDC.hex:i'])
+        # Reset fuses and writelock bootloader area
+        subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
+        scanner.activateBootloader()
+        time.sleep(2) # wait for linux to find the device
+        # This hangs:
+        #subprocess.check_call(AVRDUDEBOOT + ['-U', 'flash:w:Sprinter.cpp.hex:i'])
+        #scanner.resetTarget()
         
 
+        code.interact(local=locals())
         scanner.powerTargetDown()
         scanner.setLEDColor(0x00FF00)
         time.sleep(2)
@@ -566,8 +593,9 @@ while not quit:
         print e.msg
         time.sleep(10)
   except subprocess.CalledProcessError:
-    raise BrainScanTestFailure("avrdude failure")
     scanner.setLEDColor(0xFF0000)
+    time.sleep(120)
+    raise BrainScanTestFailure("avrdude failure")
   finally:
     lcd.clear()
     if scanner:
