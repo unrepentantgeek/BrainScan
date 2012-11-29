@@ -567,7 +567,7 @@ class Brainwave(object):
     self._target.digital[axis[ATT]].mode = OUTPUT
     self._target.digital[axis[EN]].mode = OUTPUT
     self._target.digital[axis[ENDSTOP]].mode = INPUT
-    self._target.digital[axis[ENDSTOP]].write(1) # enable pullup
+    #self._target.digital[axis[ENDSTOP]].write(1) # enable pullup - doesn't work!
     self.disableAxis(axis)
 
   def enableAxis(self, axis, attenuate=False):
@@ -588,7 +588,8 @@ class Brainwave(object):
     self._target.digital[axis[STEP]].write(1)
 
   def readEndstop(self, axis):
-    return self._target.digital[axis[ENDSTOP]].read()
+    endstop = self._target.get_pin("d:%s:i" % axis[ENDSTOP])
+    return endstop.read()
 
   def readBedTemp(self):
     return self._target.analog[BW_PIN_B_TEMP].read()
@@ -614,6 +615,7 @@ while not quit:
         lcd.message(" Starting Test")
         print "Starting test"
         
+        code.interact(local=locals())
         scanner.powerTargetOn()
 
         # Perform chip erase
