@@ -136,24 +136,26 @@ class BrainScan(object):
     """Apply 12V to the target."""
     
     try:
-      self._harness.EnableAnalogReporting(PIN_12V_SENSE)
-      self._harness.EnableAnalogReporting(PIN_5V_SENSE)
       self._harness.digitalWrite(PIN_RELAY, 1)
       time.sleep(0.5) # let power stabilize
 
+      self._harness.EnableAnalogReporting(PIN_12V_SENSE)
       vmot = self._harness.analogRead(PIN_12V_SENSE)
       print "vmotor: %s" % vmot
       if vmot > EXPECTED_12V + TOLERANCE_12V:
         raise BrainScanTestFailure("vmot too high: %s" % vmot)
       elif vmot < EXPECTED_12V - TOLERANCE_12V:
         raise BrainScanTestFailure("vmot too low: %s" % vmot)
+      self._harness.DisableAnalogReporting(PIN_12V_SENSE)
 
+      self._harness.EnableAnalogReporting(PIN_5V_SENSE)
       vcc = self._5v_sense.read() * COEFFICIENT_5V
       print "vcc: %s" % vcc
       if vcc > EXPECTED_5V + TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too high: %s" % vcc)
       elif vcc < EXPECTED_5V - TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too low: %s" % vcc)
+      self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
       # Check we're below 1.6A or so (all motors on, no FETS)
       target_current = self.readTargetCurrent()
@@ -191,6 +193,7 @@ class BrainScan(object):
     self._harness.pinMode(PIN_HWB, INPUT)
 
   def setLEDColor(self, color):
+    return
     self._harness.analogWrite(PIN_RED, (color >> 16 & 0xFF)/255)
     self._harness.analogWrite(PIN_GREEN, (color >> 8 & 0xFF)/255)
     self._harness.analogWrite(PIN_BLUE, (color & 0xFF)/255)
