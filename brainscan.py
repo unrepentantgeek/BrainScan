@@ -107,22 +107,22 @@ class BrainScan(object):
 
   def __init__(self, port):
     print "Brainscan Init"
-    self._harness = firmata.FirmataInit(port, 57600, 'tmp/brainscan_log')
+    self._harness = firmata.FirmataInit(port, 57600, '/tmp/brainscan_log')
 
     # Enable i2c
     self._harness.I2CConfig(0)
 
     # Configure ic2 devices
     # INA219 current sensors
-    self._harness._i2c_device.I2CWrite(0x40, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x41, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x42, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x43, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x44, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x45, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x46, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0x47, 0x00, bytearray(b'\x29\xff'))
-    self._harness._i2c_device.I2CWrite(0b01001111, 0x00, bytearray(b'9\xff'))
+    self._harness._i2c_device.I2CWrite(0x40, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x41, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x42, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x43, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x44, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x45, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x46, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0x47, 0x00, [0x29, 0xFF])
+    self._harness._i2c_device.I2CWrite(0b01001111, 0x00, [9, 0xFF])
 
     # Set RESET, HWB and BUTTON pins to high impedence
     self._harness.pinMode(PIN_RESET, INPUT)
@@ -204,7 +204,7 @@ class BrainScan(object):
   def writeMCP4462Reg(self, address, reg, value):
     """Write 9 bit value to given 4 bit register."""
     byte0 = reg << 4 | (value >> 8 & 0x01) 
-    self._harness._i2c_device.I2CWrite(address, None, bytearray([byte0, value]))
+    self._harness._i2c_device.I2CWrite(address, None, [byte0, value])
 
   def readMCP4462Reg(self, address, reg):
     """Read 9 bit value from 4 bit register."""
