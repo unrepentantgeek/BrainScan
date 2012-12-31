@@ -4,7 +4,6 @@ import code
 import math
 import pyfirmata
 import subprocess
-# import pyunit
 import struct
 import time
 
@@ -38,6 +37,8 @@ OUTPUT = 1         # as defined in wiring.h
 ANALOG = 2         # analog pin in analogInput mode
 PWM = 3            # digital pin in PWM output mode
 SERVO = 4          # digital pin in SERVO mode
+SHIFT = 5          # no idea, it's in the headers
+I2C = 6            # analog pin in I2C mode
 
 # Pin types
 DIGITAL = OUTPUT   # same as OUTPUT below
@@ -96,14 +97,6 @@ CW = 0
 CCW = 1
 
 
-brainwave_layout = {
-  'digital' : tuple(x for x in range(38)),
-  'analog' : tuple(x for x in range(8)),
-  'pwm' : (0,1,14,15,16,24,25,26,27),
-  'use_ports' : True,
-  'disabled' : ()
-  }
-
 class BrainScanTestFailure(Exception):
   def __init__(self, msg):
     self.msg = msg
@@ -111,88 +104,44 @@ class BrainScanTestFailure(Exception):
 class BrainScan(object):
   _harness = None
   _it = None
-  
-  # harness pins
-  _reset = None
-  _hwb = None
-  _button = None
-  _5v_sense = None
-  _12v_sense = None
-  _x_min = None
-  _y_min = None
-  _z_min = None
-  _red = None
-  _green = None
-  _blue = None
 
   def __init__(self, port):
     print "Brainscan Init"
-    self._harness = pyfirmata.Arduino(port)
+    self._harness = firmata.FirmataInit(port, 57600, 'tmp/brainscan_log')
 
     # Enable i2c
-    self._harness.i2c_config(0)
-    
+    self._harness.I2CConfig(0)
+
     # Configure ic2 devices
     # INA219 current sensors
-    self._harness.i2c_write(0x40, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x41, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x42, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x43, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x44, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x45, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x46, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0x47, 0x00, bytearray(b'\x29\xff'))
-    self._harness.i2c_write(0b01001111, 0x00, bytearray(b'9\xff'))
+    self._harness._i2c_device.I2CWrite(0x40, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x41, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x42, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x43, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x44, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x45, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x46, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0x47, 0x00, bytearray(b'\x29\xff'))
+    self._harness._i2c_device.I2CWrite(0b01001111, 0x00, bytearray(b'9\xff'))
 
     # Set RESET, HWB and BUTTON pins to high impedence
-    self._reset = self._harness.get_pin("d:%s:i" % PIN_RESET)
-    self._hwb = self._harness.get_pin("d:%s:i" % PIN_HWB)
-    self._button = self._harness.get_pin("d:%s:i" % PIN_BUTTON)
+    self._harness.pinMode(PIN_RESET, INPUT)
+    self._harness.pinMode(PIN_HWB, INPUT)
+    self._harness.pinMode(PIN_BUTTON, INPUT)
 
-    # Make sure the target is off
-    self._relay = self._harness.get_pin("d:%s:o" % PIN_RELAY)
-    self._relay.write(0)
-
-    # Set voltage sense lines as analog input, but disabled
-    self._5v_sense = self._harness.get_pin("a:%s:i" % PIN_5V_SENSE)
-    self._5v_sense.disable_reporting()
-    self._12v_sense = self._harness.get_pin("a:%s:i" % PIN_12V_SENSE)
-    self._12v_sense.disable_reporting()
-    # Iterator keeps analog reads from overflowing the serial port buffer
-    self._it = pyfirmata.util.Iterator(self._harness)
-    self._it.start()
-
-    # Set endstop inputs to active low to simulate untriggered switches
-    self._x_min = self._harness.get_pin("d:%s:o" % PIN_X_MIN)
-    self._x_min.write(0)
-    self._y_min = self._harness.get_pin("d:%s:o" % PIN_Y_MIN)
-    self._y_min.write(0)
-    self._z_min = self._harness.get_pin("d:%s:o" % PIN_Z_MIN)
-    self._z_min.write(0)
-
-    # Configure LED output pins
-    self._red = self._harness.get_pin("d:%s:p" % PIN_RED)
-    self._red.write(0)
-    self._green = self._harness.get_pin("d:%s:p" % PIN_GREEN)
-    self._green.write(0)
-    self._blue = self._harness.get_pin("d:%s:p" % PIN_BLUE)
-    self._blue.write(0)
-    
-  def terminate(self):
-    if self._harness:
-      self._harness.exit()
-      del self._harness
+    # Make sure the target is off (redundant, but better safe than sorry)
+    self._harness.digitalWrite(PIN_RELAY, 0)
 
   def powerTargetOn(self):
     """Apply 12V to the target."""
     
     try:
-      self._12v_sense.enable_reporting()
-      self._5v_sense.enable_reporting()
-      self._relay.write(1)
+      self._harness.EnableAnalogReporting(PIN_12V_SENSE)
+      self._harness.EnableAnalogReporting(PIN_5V_SENSE)
+      self._harness.digitalWrite(PIN_RELAY, 1)
       time.sleep(0.5) # let power stabilize
 
-      vmot = self._12v_sense.read() * COEFFICIENT_12V
+      vmot = self._harness.analogRead(PIN_12V_SENSE)
       print "vmotor: %s" % vmot
       if vmot > EXPECTED_12V + TOLERANCE_12V:
         raise BrainScanTestFailure("vmot too high: %s" % vmot)
@@ -205,7 +154,7 @@ class BrainScan(object):
         raise BrainScanTestFailure("vcc too high: %s" % vcc)
       elif vcc < EXPECTED_5V - TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too low: %s" % vcc)
-     
+
       # Check we're below 1.6A or so (all motors on, no FETS)
       target_current = self.readTargetCurrent()
       print "target current: %s" % target_current
@@ -213,91 +162,83 @@ class BrainScan(object):
         raise BrainScanTestFailure("target current too high: %s" % target_current)
 
     except:
-      self._relay.write(0) # slightly redundant, but safer
+      self._harness.digitalWrite(PIN_RELAY, 0) # slightly redundant, but safer
       raise
     finally:
-      self._12v_sense.disable_reporting()
-      self._5v_sense.disable_reporting()
+      self._harness.DisableAnalogReporting(PIN_12V_SENSE)
+      self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
   def powerTargetDown(self):
     """Power down target board."""
-    self._relay.write(0)
+    self._harness.digitalWrite(PIN_RELAY, 0)
 
   def resetTarget(self):
     """Reset the target board."""
-    self._reset.mode = OUTPUT
-    self._reset.write(0)
+    self._harness.pinMode(PIN_RESET, OUTPUT)
+    self._harness.digitalWrite(PIN_RESET, 0)
     time.sleep(0.5)
-    self._reset.mode = INPUT
+    self._harness.pinMode(PIN_RESET, INPUT)
 
   def activateBootloader(self):
     """Put the target in bootloader mode."""
-    self._hwb.mode = OUTPUT
-    self._hwb.write(0)
-    self._reset.mode = OUTPUT
-    self._reset.write(0)
+    self._harness.pinMode(PIN_HWB, OUTPUT)
+    self._harness.digitalWrite(PIN_HWB, 0)
+    self._harness.pinMode(PIN_RESET, OUTPUT)
+    self._harness.digitalWrite(PIN_RESET, 0)
     time.sleep(0.1)
-    self._reset.mode = INPUT
+    self._harness.pinMode(PIN_RESET, INPUT)
     time.sleep(0.1)
-    self._hwb.mode = INPUT
+    self._harness.pinMode(PIN_HWB, INPUT)
 
   def setLEDColor(self, color):
-    self._red.write((color >> 16 & 0xFF)/255)
-    self._green.write((color >> 8 & 0xFF)/255)
-    self._blue.write((color & 0xFF)/255)
-  
+    self._harness.analogWrite(PIN_RED, (color >> 16 & 0xFF)/255)
+    self._harness.analogWrite(PIN_GREEN, (color >> 8 & 0xFF)/255)
+    self._harness.analogWrite(PIN_BLUE, (color & 0xFF)/255)
+
   def readHWB(self):
-    return self._hwb.read()
-  
+    return self_harness.digitalRead(PIN_HWB)
+
   def readReset(self):
-    return self._reset.read()
+    return self_harness.digitalRead(PIN_RESET)
 
   def writeMCP4462Reg(self, address, reg, value):
     """Write 9 bit value to given 4 bit register."""
     byte0 = reg << 4 | (value >> 8 & 0x01) 
-    self._harness.i2c_write(address, None, bytearray([byte0, value]))
+    self._harness._i2c_device.I2CWrite(address, None, bytearray([byte0, value]))
 
   def readMCP4462Reg(self, address, reg):
     """Read 9 bit value from 4 bit register."""
     byte0 = reg << 4 | 0x0c
-    return self._harness.i2c_read(address, byte0, 2)
+    return self._harness._i2c_device.I2CRead(address, byte0, 2)
 
   def setBedPot(self, value):
     self.writeMCP4462Reg(DIGITAL_POT, BED_POT_REG, value)
-    
+
   def setExtruderPot(self, value):
     self.writeMCP4462Reg(DIGITAL_POT, EXT_POT_REG, value)
-    
+
   def readINA219Current(self, address, sense=SENSE_OHMS):
-    raw = self._harness.i2c_read(address, 0x01, 2)
+    raw = self._harness._i2c_device.I2CRead(address, 0x01, 2)
     value = struct.unpack( '!h', bytes(raw[0:2]) )[0]
     return value * SENSE_LSB / sense
-    
+
   def readTargetCurrent(self):
     return self.readINA219Current(0b01001111, 0.02)
-  
+
   def readAxisCurrent(self, axis):
     return (self.readINA219Current(axis[COIL_A]),
             self.readINA219Current(axis[COIL_B]))
-  
+
   def testEndstop(self, target, axis):
     print "Testing %s axis endstop" % axis[NAME]
     if (axis[ENDSTOP] < 0):
       return
-    if axis[NAME] == "X":
-      endstop = self._x_min
-    elif axis[NAME] == "Y":
-      endstop = self._y_min
-    elif axis[NAME] == "Z":
-      endstop = self._z_min
-    else:
-      return
-    
-    endstop.write(0)
+
+    self._harness.digitalWrite(axis[ENDSTOP], 0)
     time.sleep(0.05)
     if target.readEndstop(axis) != 0:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
-    endstop.write(1)
+    self._harness.digitalWrite(axis[ENDSTOP], 1)
     time.sleep(0.05)
     if target.readEndstop(axis) != 1:
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
@@ -435,14 +376,14 @@ class BrainScan(object):
 
   def testResetButton(self):
     """Only call when the target object doesn't exist."""
-    self._reset.mode = INPUT
-    if self._reset.read() is False:
+    self._harness.pinMode(PIN_RESET, INPUT)
+    if self._harness.digitalRead(PIN_RESET) is False:
       raise BrainScanTestFailure("RESET pin LOW when not pressed")
     print "Please press the PROGRAM button"
     timeout = time.time() + 5
     count = 0
     while timeout > time.time():
-      if self._reset.read() is False:
+      if self._harness.digitalRead(PIN_RESET) is False:
         count += 1
       else:
         count = 0
@@ -453,14 +394,14 @@ class BrainScan(object):
       raise BrainScanTestFailure("RESET button test timed out")
 
   def testProgramButton(self):
-    self._hwb.mode = INPUT
-    if self._hwb.read() is False:
+    self._harness.pinMode(PIN_HWB, INPUT)
+    if self._harness.digitalRead(PIN_HWB) is False:
       raise BrainScanTestFailure("HWB pin LOW when not pressed")
     print "Please press the PROGRAM button"
     timeout = time.time() + 5
     count = 0
     while timeout > time.time():
-      if self._hwb.read() is False:
+      if self._harness.digitalRead(PIN_HWB) is False:
         count += 1
       else:
         count = 0
@@ -525,16 +466,8 @@ class BrainScan(object):
 
 class Brainwave(object):
   def __init__(self, port):
-    self._target = pyfirmata.Board(port, brainwave_layout)
-    
-    # Iterator keeps analog reads from overflowing the serial port buffer
-    self._it = pyfirmata.util.Iterator(self._target)
-    self._it.start()
+    self._target = firmata.FirmataInit(port, 57600, '/tmp/brainwave_log')
 
-    self._bed_heat = self._target.get_pin("d:%s:o" % BW_PIN_B_HEAT)
-    self._ext_heat = self._target.get_pin("d:%s:o" % BW_PIN_E_HEAT)
-    self._fan = self._target.get_pin("d:%s:o" % BW_PIN_FAN)
-    
     # Make sure things start off right (i.e. off)
     self.assertBedHeat(False)
     self.assertExtruderHeat(False)
@@ -543,59 +476,57 @@ class Brainwave(object):
     self.setupAxis(BW_Y_AXIS)
     self.setupAxis(BW_Z_AXIS)
     self.setupAxis(BW_E_AXIS)
-    self._b_temp = self._target.get_pin("a:%s:i" % BW_PIN_B_TEMP)
-    self._e_temp = self._target.get_pin("a:%s:i" % BW_PIN_E_TEMP)
-
-  def terminate(self):
-    if self._target:
-      self._target.exit()
-      del self._target
-
 
   def assertBedHeat(self, state):
-    self._bed_heat.write(state)
+    self._target.digitalWrite(BW_PIN_B_HEAT, state)
 
   def assertExtruderHeat(self, state):
-    self._ext_heat.write(state)
+    self._target.digitalWrite(BW_PIN_E_HEAT, state)
 
   def assertFan(self, state):
-    self._fan.write(state)
+    self._target.digitalWrite(BW_PIN_FAN, state)
 
   def setupAxis(self, axis):
-    self._target.digital[axis[STEP]].mode = OUTPUT
-    self._target.digital[axis[DIR]].mode = OUTPUT
-    self._target.digital[axis[ATT]].mode = OUTPUT
-    self._target.digital[axis[EN]].mode = OUTPUT
-    self._target.digital[axis[ENDSTOP]].mode = INPUT
-    #self._target.digital[axis[ENDSTOP]].write(1) # enable pullup - doesn't work!
+    self._target.pinMode(axis[STEP], OUTPUT)
+    self._target.pinMode(axis[STEP], OUTPUT)
+    self._target.pinMode(axis[DIR], OUTPUT)
+    self._target.pinMode(axis[ATT], OUTPUT)
+    self._target.pinMode(axis[EN], OUTPUT)
+    self._target.pinMode(axis[ENDSTOP], INPUT)
+    #self._target.digitalWrite(axis[ENDSTOP], 1) # enable pullup
     self.disableAxis(axis)
 
   def enableAxis(self, axis, attenuate=False):
     if attenuate:
-      self._target.digital[axis[ATT]].write(1);
+      self._target.digitalWrite(axis[ATT], 1)
     else:
-      self._target.digital[axis[ATT]].write(0);
-    self._target.digital[axis[EN]].write(0);
+      self._target.digitalWrite(axis[ATT], 0)
+    self._target.digitalWrite(axis[EN], 0)
 
   def disableAxis(self, axis):
-    self._target.digital[axis[EN]].write(1);
+    self._target.digitalWrite(axis[EN], 1)
 
   def stepAxis(self, axis, direction):
     """stepper driver steps on rising edge"""
-    self._target.digital[axis[DIR]].write(direction)
-    self._target.digital[axis[STEP]].write(0)
+    self._target.digitalWrite(axis[DIR], direction)
+    self._target.digitalWrite(axis[STEP], 0)
     time.sleep(0.01)  # do we need this sleep?
-    self._target.digital[axis[STEP]].write(1)
+    self._target.digitalWrite(axis[STEP], 1)
 
   def readEndstop(self, axis):
-    endstop = self._target.get_pin("d:%s:i" % axis[ENDSTOP])
-    return endstop.read()
+    return self._target.digitalRead(axis[ENDSTOP])
 
   def readBedTemp(self):
-    return self._target.analog[BW_PIN_B_TEMP].read()
+    self._target.EnableAnalogReporting(BW_PIN_B_TEMP)
+    ret = self._target.analogRead(BW_PIN_B_TEMP)
+    self._target.DisableAnalogReporting(BW_PIN_B_TEMP)
+    return ret
 
   def readExtruderTemp(self):
-    return self._target.analog[BW_PIN_E_TEMP].read()
+    self._target.EnableAnalogReporting(BW_PIN_E_TEMP)
+    ret = self._target.analogRead(BW_PIN_E_TEMP)
+    self._target.DisableAnalogReporting(BW_PIN_E_TEMP)
+    return ret
 
 
 lcd = Adafruit_CharLCD()
