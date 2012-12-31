@@ -565,9 +565,6 @@ while not quit:
         code.interact(local=locals())
         quit = True
 
-        target.terminate()
-        del target
-        
         # write bootloader
         subprocess.check_call(AVRDUDE + ['-U', 'flash:w:BrainwaveBootloaderCDC.hex:i'])
         # Reset fuses and writelock bootloader area
@@ -599,5 +596,3 @@ while not quit:
     #lcd.clear()
     if scanner:
       scanner.powerTargetDown()
-      scanner.terminate()
-      del scanner
