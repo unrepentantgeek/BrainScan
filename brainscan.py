@@ -2,12 +2,12 @@
 
 import code
 import math
-import pyfirmata
+import firmata
 import subprocess
 import struct
 import time
 
-from Adafruit_CharLCD import Adafruit_CharLCD
+#from Adafruit_CharLCD import Adafruit_CharLCD
 from datetime import datetime
 from subprocess import * 
 
@@ -529,12 +529,12 @@ class Brainwave(object):
     return ret
 
 
-lcd = Adafruit_CharLCD()
-lcd.clear()
+#lcd = Adafruit_CharLCD()
+#lcd.clear()
 scanner = None
 quit = False
 
-lcd.message("   Brainscan\n Initializing")
+#lcd.message("   Brainscan\n Initializing")
 
 while not quit:
   try:
@@ -542,8 +542,8 @@ while not quit:
     while not quit:
       try:
         scanner.setLEDColor(0xFFFFFF)
-        lcd.clear()
-        lcd.message(" Starting Test")
+        #lcd.clear()
+        #lcd.message(" Starting Test")
         print "Starting test"
         
         code.interact(local=locals())
@@ -587,8 +587,8 @@ while not quit:
         print "Test failure"
         scanner.powerTargetDown()
         scanner.setLEDColor(0xFF0000)
-        lcd.clear()
-        lcd.message(" Test Failure\n%s" % e.msg)
+        #lcd.clear()
+        #lcd.message(" Test Failure\n%s" % e.msg)
         print e.msg
         time.sleep(10)
   except subprocess.CalledProcessError:
@@ -596,7 +596,7 @@ while not quit:
     time.sleep(120)
     raise BrainScanTestFailure("avrdude failure")
   finally:
-    lcd.clear()
+    #lcd.clear()
     if scanner:
       scanner.powerTargetDown()
       scanner.terminate()
