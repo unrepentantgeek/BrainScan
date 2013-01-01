@@ -19,7 +19,7 @@ TOLERANCE_12V = 0.5
 TOLERANCE_5V = 0.25
 # 0.844 coefficient to all analog readings from arduino?
 COEFFICIENT_12V = 20.151515 # 13300 / 3300 * 5
-COEFFICIENT_5V = 10 # 6600 / 3300 * 5
+COEFFICIENT_5V = 10.0 # 6600 / 3300 * 5
 
 # avrdude params
 AVR_CMD = '/usr/bin/avrdude'
@@ -113,7 +113,7 @@ class BrainScan(object):
     self._harness.I2CConfig(0)
 
     # Configure ic2 devices
-    # INA219 current sensors
+    # INA219 stepper current sensors
     self._harness._i2c_device.I2CWrite(0x40, 0x00, [0x29, 0xFF])
     self._harness._i2c_device.I2CWrite(0x41, 0x00, [0x29, 0xFF])
     self._harness._i2c_device.I2CWrite(0x42, 0x00, [0x29, 0xFF])
@@ -122,7 +122,8 @@ class BrainScan(object):
     self._harness._i2c_device.I2CWrite(0x45, 0x00, [0x29, 0xFF])
     self._harness._i2c_device.I2CWrite(0x46, 0x00, [0x29, 0xFF])
     self._harness._i2c_device.I2CWrite(0x47, 0x00, [0x29, 0xFF])
-    self._harness._i2c_device.I2CWrite(0b01001111, 0x00, [9, 0xFF])
+    # INA219 board input current sensor
+    self._harness._i2c_device.I2CWrite(0x4F, 0x00, [0x39, 0xFF])
 
     # Set RESET, HWB and BUTTON pins to high impedence
     self._harness.pinMode(PIN_RESET, INPUT)
@@ -224,7 +225,7 @@ class BrainScan(object):
     return value * SENSE_LSB / sense
 
   def readTargetCurrent(self):
-    return self.readINA219Current(0b01001111, 0.02)
+    return self.readINA219Current(0x4F, 0.02)
 
   def readAxisCurrent(self, axis):
     return (self.readINA219Current(axis[COIL_A]),
