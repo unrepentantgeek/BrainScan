@@ -220,9 +220,11 @@ class BrainScan(object):
     self.writeMCP4462Reg(DIGITAL_POT, EXT_POT_REG, value)
 
   def readINA219Current(self, address, sense=SENSE_OHMS):
-    raw = self._harness._i2c_device.I2CRead(address, 0x01, 2)
-    value = struct.unpack( '!h', bytes(raw[0:2]) )[0]
-    return value * SENSE_LSB / sense
+    reply = self._harness._i2c_device.I2CRead(address, 0x01, 2)
+    assert type(rely) == list
+    assert len(reply) == 2
+    shunt = reply[0] | reply[1] << 8
+    return shunt * SENSE_LSB / sense
 
   def readTargetCurrent(self):
     return self.readINA219Current(0x4F, 0.02)
