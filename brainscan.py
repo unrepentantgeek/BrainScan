@@ -148,7 +148,7 @@ class BrainScan(object):
       elif vmot < EXPECTED_12V - TOLERANCE_12V:
         raise BrainScanTestFailure("vmot too low: %s" % vmot)
 
-      vcc = self._5v_sense.read() * COEFFICIENT_5V / 1024
+      vcc = self._harness.analogRead(PIN_5V_SENSE) * COEFFICIENT_5V / 1024
       print "vcc: %s" % vcc
       if vcc > EXPECTED_5V + TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too high: %s" % vcc)
