@@ -193,7 +193,6 @@ class BrainScan(object):
     self._harness.pinMode(PIN_HWB, INPUT)
 
   def setLEDColor(self, color):
-    return
     self._harness.analogWrite(PIN_RED, color >> 16 & 0xFF)
     self._harness.analogWrite(PIN_GREEN, color >> 8 & 0xFF)
     self._harness.analogWrite(PIN_BLUE, color & 0xFF)
