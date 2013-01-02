@@ -106,11 +106,10 @@ class BrainScan(object):
   _it = None
 
   def __init__(self, port):
-    print "Brainscan Init"
     self._harness = firmata.FirmataInit(port, 57600, '/tmp/brainscan_log')
 
     # Enable i2c
-    self._harness.I2CConfig(0)
+    self._harness.I2CConfig(4) #INA219 registers are delayed by 4uS
 
     # Configure ic2 devices
     # INA219 stepper current sensors
@@ -161,6 +160,8 @@ class BrainScan(object):
       print "target current: %s" % target_current
       if target_current > 4:
         raise BrainScanTestFailure("target current too high: %s" % target_current)
+
+      # TODO(mwilson): Test each stepper coil to ensure current below 0.7A
 
     except:
       self._harness.digitalWrite(PIN_RELAY, 0) # slightly redundant, but safer
@@ -542,6 +543,7 @@ quit = False
 
 while not quit:
   try:
+    print "Connecting to test harness via Firmata protocol..."
     scanner = BrainScan(PORT)
     while not quit:
       try:
@@ -553,14 +555,17 @@ while not quit:
         code.interact(local=locals())
         scanner.powerTargetOn()
 
+        """ Temp disabled for dev
         # Perform chip erase
         subprocess.check_call(AVRDUDE + ['-e'])
         # Set fuses for flashing
         subprocess.check_call(AVRDUDE + FUSES)
         # Write firmata
         subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
+        """
 
-        time.sleep(2) # give the target a chance to start
+        code.interact(local=locals())
+        print "Connecting to target via Firmata protocol..."
         target = Brainwave("/dev/ttyACM1")
 
         def test():
@@ -569,6 +574,7 @@ while not quit:
         code.interact(local=locals())
         quit = True
 
+        """ Temp disabled for dev
         # write bootloader
         subprocess.check_call(AVRDUDE + ['-U', 'flash:w:BrainwaveBootloaderCDC.hex:i'])
         # Reset fuses and writelock bootloader area
@@ -578,7 +584,7 @@ while not quit:
         # This hangs:
         #subprocess.check_call(AVRDUDEBOOT + ['-U', 'flash:w:Sprinter.cpp.hex:i'])
         #scanner.resetTarget()
-        
+        """
 
         code.interact(local=locals())
         scanner.powerTargetDown()
