@@ -497,7 +497,8 @@ class Brainwave(object):
     self._target.pinMode(axis[DIR], OUTPUT)
     self._target.pinMode(axis[ATT], OUTPUT)
     self._target.pinMode(axis[EN], OUTPUT)
-    self._target.pinMode(axis[ENDSTOP], INPUT)
+    if axis[ENDSTOP] != -1:
+      self._target.pinMode(axis[ENDSTOP], INPUT)
     #self._target.digitalWrite(axis[ENDSTOP], 1) # enable pullup
     self.disableAxis(axis)
 
@@ -573,6 +574,7 @@ while not quit:
         #scanner.runTestSuite(target)
         code.interact(local=locals())
         quit = True
+        target._target.StopCommunications()
 
         """ Temp disabled for dev
         # write bootloader
