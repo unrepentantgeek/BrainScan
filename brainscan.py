@@ -553,45 +553,39 @@ while not quit:
         #lcd.message(" Starting Test")
         print "Starting test"
         
-        code.interact(local=locals())
+        code.interact('Place board and press ^D', local=locals())
         scanner.powerTargetOn()
 
-        """ Temp disabled for dev
+        print "Flashing target board with Firmata firmware..."
         # Perform chip erase
         subprocess.check_call(AVRDUDE + ['-e'])
         # Set fuses for flashing
         subprocess.check_call(AVRDUDE + FUSES)
         # Write firmata
         subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
-        """
 
-        code.interact(local=locals())
         print "Connecting to target via Firmata protocol..."
         target = Brainwave("/dev/ttyACM1")
 
         def test():
           scanner.runTestSuite(target)
         #scanner.runTestSuite(target)
-        code.interact(local=locals())
+        code.interact('type \'test()\' to run a test', local=locals())
         quit = True
         target._target.StopCommunications()
 
-        """ Temp disabled for dev
         # write bootloader
         subprocess.check_call(AVRDUDE + ['-U', 'flash:w:BrainwaveBootloaderCDC.hex:i'])
         # Reset fuses and writelock bootloader area
         subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
         scanner.activateBootloader()
-        time.sleep(2) # wait for linux to find the device
+        #time.sleep(2) # wait for linux to find the device
         # This hangs:
         #subprocess.check_call(AVRDUDEBOOT + ['-U', 'flash:w:Sprinter.cpp.hex:i'])
         #scanner.resetTarget()
-        """
 
-        code.interact(local=locals())
         scanner.powerTargetDown()
         scanner.setLEDColor(0x00FF00)
-        time.sleep(2)
       except BrainScanTestFailure as e:
         print "Test failure"
         scanner.powerTargetDown()
