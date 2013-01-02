@@ -223,7 +223,7 @@ class BrainScan(object):
     reply = self._harness._i2c_device.I2CRead(address, 0x01, 2)
     assert type(reply) == list
     assert len(reply) == 2
-    shunt = reply[0] | reply[1] << 8
+    shunt = reply[0] << 8 | reply[1]
     return shunt * SENSE_LSB / sense
 
   def readTargetCurrent(self):
