@@ -564,6 +564,8 @@ while not quit:
         # Write firmata
         subprocess.check_call(AVRDUDE + ['-D', '-U', 'flash:w:BrainwaveFirmata.cpp.hex:i'])
 
+        print "Waiting for serial device to become available..."
+        time.sleep(2)
         print "Connecting to target via Firmata protocol..."
         target = Brainwave("/dev/ttyACM1")
 
@@ -579,11 +581,13 @@ while not quit:
         # Reset fuses and writelock bootloader area
         subprocess.check_call(AVRDUDE + FUSES + ['-U', 'lock:w:0x2f:m'])
         scanner.activateBootloader()
+        code.interact('Press PROGRAM and RESET buttons, type ^D to continue', local=locals())
         #time.sleep(2) # wait for linux to find the device
         # This hangs:
         #subprocess.check_call(AVRDUDEBOOT + ['-U', 'flash:w:Sprinter.cpp.hex:i'])
         #scanner.resetTarget()
 
+        print "Powering target down..."
         scanner.powerTargetDown()
         scanner.setLEDColor(0x00FF00)
       except BrainScanTestFailure as e:
@@ -594,6 +598,7 @@ while not quit:
         #lcd.message(" Test Failure\n%s" % e.msg)
         print e.msg
         time.sleep(10)
+    scanner._harness.StopCommunications()
   except subprocess.CalledProcessError:
     scanner.setLEDColor(0xFF0000)
     time.sleep(120)
