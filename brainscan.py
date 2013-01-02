@@ -141,6 +141,12 @@ class BrainScan(object):
       self._harness.digitalWrite(PIN_RELAY, 1)
       time.sleep(0.5) # let power stabilize
 
+      # Check we're below 4A or so (all motors on, no FETS)
+      target_current = self.readTargetCurrent()
+      print "target current: %s" % target_current
+      if target_current > 4:
+        raise BrainScanTestFailure("target current too high: %s" % target_current)
+
       vmot = self._harness.analogRead(PIN_12V_SENSE) * COEFFICIENT_12V / 1024
       print "vmotor: %s" % vmot
       if vmot > EXPECTED_12V + TOLERANCE_12V:
@@ -154,12 +160,8 @@ class BrainScan(object):
         raise BrainScanTestFailure("vcc too high: %s" % vcc)
       elif vcc < EXPECTED_5V - TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too low: %s" % vcc)
-
-      # Check we're below 1.6A or so (all motors on, no FETS)
-      target_current = self.readTargetCurrent()
-      print "target current: %s" % target_current
-      if target_current > 4:
-        raise BrainScanTestFailure("target current too high: %s" % target_current)
+      self._harness.DisableAnalogReporting(PIN_12V_SENSE)
+      self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
       # TODO(mwilson): Test each stepper coil to ensure current below 0.7A
 
