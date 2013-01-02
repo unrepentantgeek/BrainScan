@@ -136,8 +136,6 @@ class BrainScan(object):
     """Apply 12V to the target."""
     
     try:
-      self._harness.EnableAnalogReporting(PIN_12V_SENSE)
-      self._harness.EnableAnalogReporting(PIN_5V_SENSE)
       self._harness.digitalWrite(PIN_RELAY, 1)
       time.sleep(0.5) # let power stabilize
 
@@ -147,6 +145,9 @@ class BrainScan(object):
       if target_current > 4:
         raise BrainScanTestFailure("target current too high: %s" % target_current)
 
+      self._harness.EnableAnalogReporting(PIN_12V_SENSE)
+      self._harness.EnableAnalogReporting(PIN_5V_SENSE)
+      time.sleep(0.5)
       vmot = self._harness.analogRead(PIN_12V_SENSE) * COEFFICIENT_12V / 1024
       print "vmotor: %s" % vmot
       if vmot > EXPECTED_12V + TOLERANCE_12V:
@@ -335,12 +336,12 @@ class BrainScan(object):
       errors = 0
 
       start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
-      for step in range(start, start + 16):
+      for step in range(start, start + 4):
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
         target.stepAxis(axis, CW)
-        time.sleep(0.1)
+        time.sleep(0.25)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
@@ -349,26 +350,26 @@ class BrainScan(object):
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
 
       start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
-      for step in range(start, start - 16, -1):
+      for step in range(start, start - 4, -1):
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
         target.stepAxis(axis, CCW)
-        time.sleep(0.1)
+        time.sleep(0.25)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
       print "Errors: %s" % errors
 
       target.enableAxis(axis, attenuate=True)
-      time.sleep(0.1)
+      time.sleep(0.25)
       start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
-      for step in range(start, start + 16):
+      for step in range(start, start + 4):
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
         target.stepAxis(axis, CW)
-        time.sleep(0.1)
+        time.sleep(0.25)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
           raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
