@@ -258,11 +258,11 @@ class BrainScan(object):
       raise BrainScanTestFailure("Trying to test non-existant Axis.")
 
     self._harness.digitalWrite(endstop_pin, 0)
-    time.sleep(0.1)
+    time.sleep(0.25)
     if target.readEndstop(axis):
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
     self._harness.digitalWrite(endstop_pin, 1)
-    time.sleep(0.1)
+    time.sleep(0.25)
     if not target.readEndstop(axis):
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
 
