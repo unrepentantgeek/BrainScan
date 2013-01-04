@@ -164,7 +164,13 @@ class BrainScan(object):
       self._harness.DisableAnalogReporting(PIN_12V_SENSE)
       self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
-      # TODO(mwilson): Test each stepper coil to ensure current below 0.7A
+      # Test each stepper coil to ensure current below 0.7A
+      for axis in (BW_X_AXIS, BW_Y_AXIS, BW_Z_AXIS, BW_E_AXIS):
+        (coil_a, coil_b) = self.readAxisCurrent(axis)
+        if coil_a > 0.7:
+          raise BrainScanTestFailure("%s axis coil A current too high" % axis[NAME])
+        if coil_b > 0.7:
+          raise BrainScanTestFailure("%s axis coil B current too high" % axis[NAME])
 
     except:
       self._harness.digitalWrite(PIN_RELAY, 0) # slightly redundant, but safer
@@ -241,74 +247,92 @@ class BrainScan(object):
     if (axis[ENDSTOP] < 0):
       return
 
-    self._harness.digitalWrite(axis[ENDSTOP], 0)
-    time.sleep(0.05)
-    if target.readEndstop(axis) != 0:
+    # Compensate for poor architectural decisions
+    if axis == BW_X_AXIS:
+      endstop_pin = PIN_X_MIN
+    elif axis == BW_Y_AXIS:
+      endstop_pin = PIN_Y_MIN
+    elif axis == BW_Z_AXIS:
+      endstop_pin = PIN_Z_MIN
+    else:
+      raise BrainScanTestFailure("Trying to test non-existant Axis.")
+
+    self._harness.digitalWrite(endstop_pin, 0)
+    time.sleep(0.1)
+    if target.readEndstop(axis):
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
-    self._harness.digitalWrite(axis[ENDSTOP], 1)
-    time.sleep(0.05)
-    if target.readEndstop(axis) != 1:
+    self._harness.digitalWrite(endstop_pin, 1)
+    time.sleep(0.1)
+    if not target.readEndstop(axis):
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
 
   def testExtruderTempSet(self, target, value, min, max):
     self.setExtruderPot(value)
-    time.sleep(0.1)
+    time.sleep(0.25)
     extruder_temp = target.readExtruderTemp()
     print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, extruder_temp)
     if not min < extruder_temp < max:
       raise BrainScanTestFailure("Extruder temp failure %s" % value)
 
   def testExtruderTemp(self, target):
-    self.testExtruderTempSet(target, 0x00, 0.00, 0.04)
-    self.testExtruderTempSet(target, 0x01, 0.10, 0.13)
-    self.testExtruderTempSet(target, 0x02, 0.17, 0.20)
-    self.testExtruderTempSet(target, 0x03, 0.23, 0.26)
-    self.testExtruderTempSet(target, 0x04, 0.28, 0.31)
-    self.testExtruderTempSet(target, 0x05, 0.33, 0.36)
-    self.testExtruderTempSet(target, 0x06, 0.36, 0.39)
-    self.testExtruderTempSet(target, 0x07, 0.40, 0.43)
-    self.testExtruderTempSet(target, 0x08, 0.43, 0.46)
-    self.testExtruderTempSet(target, 0x09, 0.46, 0.49)
-    self.testExtruderTempSet(target, 0x10, 0.60, 0.63)
-    self.testExtruderTempSet(target, 0x20, 0.735, 0.76)
-    self.testExtruderTempSet(target, 0x30, 0.81, 0.84)
-    self.testExtruderTempSet(target, 0x40, 0.84, 0.87)
-    self.testExtruderTempSet(target, 0x50, 0.87, 0.90)
-    self.testExtruderTempSet(target, 0x60, 0.89, 0.92)
-    self.testExtruderTempSet(target, 0x70, 0.90, 0.93)
-    self.testExtruderTempSet(target, 0x80, 0.91, 0.94)
-    self.testExtruderTempSet(target, 0x90, 0.92, 0.95)
-    self.testExtruderTempSet(target, 0xff, 0.94, 1.00)
+    try:
+      self._target.EnableAnalogReporting(BW_PIN_E_TEMP)
+      self.testExtruderTempSet(target, 0x00, 0.00, 0.04)
+      self.testExtruderTempSet(target, 0x01, 0.10, 0.13)
+      self.testExtruderTempSet(target, 0x02, 0.17, 0.20)
+      self.testExtruderTempSet(target, 0x03, 0.23, 0.26)
+      self.testExtruderTempSet(target, 0x04, 0.28, 0.31)
+      self.testExtruderTempSet(target, 0x05, 0.33, 0.36)
+      self.testExtruderTempSet(target, 0x06, 0.36, 0.39)
+      self.testExtruderTempSet(target, 0x07, 0.40, 0.43)
+      self.testExtruderTempSet(target, 0x08, 0.43, 0.46)
+      self.testExtruderTempSet(target, 0x09, 0.46, 0.49)
+      self.testExtruderTempSet(target, 0x10, 0.60, 0.63)
+      self.testExtruderTempSet(target, 0x20, 0.735, 0.76)
+      self.testExtruderTempSet(target, 0x30, 0.81, 0.84)
+      self.testExtruderTempSet(target, 0x40, 0.84, 0.87)
+      self.testExtruderTempSet(target, 0x50, 0.87, 0.90)
+      self.testExtruderTempSet(target, 0x60, 0.89, 0.92)
+      self.testExtruderTempSet(target, 0x70, 0.90, 0.93)
+      self.testExtruderTempSet(target, 0x80, 0.91, 0.94)
+      self.testExtruderTempSet(target, 0x90, 0.92, 0.95)
+      self.testExtruderTempSet(target, 0xff, 0.94, 1.00)
+    finally:
+      self._target.DisableAnalogReporting(BW_PIN_E_TEMP)
   
   def testBedTempSet(self, target, value, min, max):
     self.setBedPot(value)
-    time.sleep(0.1)
+    time.sleep(0.25)
     bed_temp = target.readBedTemp()
     print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, bed_temp)
     if not min < bed_temp < max:
       raise BrainScanTestFailure("Bed temp failure %s" % value)
 
   def testBedTemp(self, target):
-    self.testBedTempSet(target, 0x00, 0.00, 0.04)
-    self.testBedTempSet(target, 0x01, 0.10, 0.13)
-    self.testBedTempSet(target, 0x02, 0.17, 0.20)
-    self.testBedTempSet(target, 0x03, 0.23, 0.26)
-    self.testBedTempSet(target, 0x04, 0.28, 0.31)
-    self.testBedTempSet(target, 0x05, 0.33, 0.36)
-    self.testBedTempSet(target, 0x06, 0.36, 0.39)
-    self.testBedTempSet(target, 0x07, 0.40, 0.43)
-    self.testBedTempSet(target, 0x08, 0.43, 0.46)
-    self.testBedTempSet(target, 0x09, 0.46, 0.49)
-    self.testBedTempSet(target, 0x10, 0.60, 0.63)
-    self.testBedTempSet(target, 0x20, 0.735, 0.76)
-    self.testBedTempSet(target, 0x30, 0.81, 0.84)
-    self.testBedTempSet(target, 0x40, 0.84, 0.87)
-    self.testBedTempSet(target, 0x50, 0.87, 0.90)
-    self.testBedTempSet(target, 0x60, 0.89, 0.92)
-    self.testBedTempSet(target, 0x70, 0.90, 0.93)
-    self.testBedTempSet(target, 0x80, 0.91, 0.94)
-    self.testBedTempSet(target, 0x90, 0.92, 0.95)
-    self.testBedTempSet(target, 0xff, 0.94, 1.00)
+    try:
+      self._target.EnableAnalogReporting(BW_PIN_B_TEMP)
+      self.testBedTempSet(target, 0x00, 0.00, 0.04)
+      self.testBedTempSet(target, 0x01, 0.10, 0.13)
+      self.testBedTempSet(target, 0x02, 0.17, 0.20)
+      self.testBedTempSet(target, 0x03, 0.23, 0.26)
+      self.testBedTempSet(target, 0x04, 0.28, 0.31)
+      self.testBedTempSet(target, 0x05, 0.33, 0.36)
+      self.testBedTempSet(target, 0x06, 0.36, 0.39)
+      self.testBedTempSet(target, 0x07, 0.40, 0.43)
+      self.testBedTempSet(target, 0x08, 0.43, 0.46)
+      self.testBedTempSet(target, 0x09, 0.46, 0.49)
+      self.testBedTempSet(target, 0x10, 0.60, 0.63)
+      self.testBedTempSet(target, 0x20, 0.735, 0.76)
+      self.testBedTempSet(target, 0x30, 0.81, 0.84)
+      self.testBedTempSet(target, 0x40, 0.84, 0.87)
+      self.testBedTempSet(target, 0x50, 0.87, 0.90)
+      self.testBedTempSet(target, 0x60, 0.89, 0.92)
+      self.testBedTempSet(target, 0x70, 0.90, 0.93)
+      self.testBedTempSet(target, 0x80, 0.91, 0.94)
+      self.testBedTempSet(target, 0x90, 0.92, 0.95)
+      self.testBedTempSet(target, 0xff, 0.94, 1.00)
+    finally:
+      self._target.DisableAnalogReporting(BW_PIN_B_TEMP)
   
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
@@ -475,6 +499,13 @@ class Brainwave(object):
   def __init__(self, port):
     self._target = firmata.FirmataInit(port, 57600, '/tmp/brainwave_log')
 
+    self._target.EnableDigitalReporting(0)
+    self._target.EnableDigitalReporting(1)
+    self._target.EnableDigitalReporting(2)
+    self._target.EnableDigitalReporting(3)
+    self._target.EnableDigitalReporting(4)
+    self._target.EnableDigitalReporting(5)
+
     # Make sure things start off right (i.e. off)
     self.assertBedHeat(False)
     self.assertExtruderHeat(False)
@@ -525,15 +556,11 @@ class Brainwave(object):
     return self._target.digitalRead(axis[ENDSTOP])
 
   def readBedTemp(self):
-    self._target.EnableAnalogReporting(BW_PIN_B_TEMP)
-    ret = self._target.analogRead(BW_PIN_B_TEMP)
-    self._target.DisableAnalogReporting(BW_PIN_B_TEMP)
+    ret = self._target.analogRead(BW_PIN_B_TEMP) / 1024.0
     return ret
 
   def readExtruderTemp(self):
-    self._target.EnableAnalogReporting(BW_PIN_E_TEMP)
-    ret = self._target.analogRead(BW_PIN_E_TEMP)
-    self._target.DisableAnalogReporting(BW_PIN_E_TEMP)
+    ret = self._target.analogRead(BW_PIN_E_TEMP) / 1024.0
     return ret
 
 
