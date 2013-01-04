@@ -137,40 +137,45 @@ class BrainScan(object):
     
     try:
       self._harness.digitalWrite(PIN_RELAY, 1)
-      time.sleep(0.5) # let power stabilize
-
-      # Check we're below 4A or so (all motors on, no FETS)
-      target_current = self.readTargetCurrent()
-      print "target current: %s" % target_current
-      if target_current > 4:
-        raise BrainScanTestFailure("target current too high: %s" % target_current)
+      start_time = time.time()
+      while time.time() < start_time + 2:
+        # Check we're below 4A or so (all motors on, no FETS)
+        target_current = self.readTargetCurrent()
+        print "target current: %s" % target_current
+        if target_current > 4:
+          raise BrainScanTestFailure("target current too high: %s" % target_current)
 
       self._harness.EnableAnalogReporting(PIN_12V_SENSE)
       self._harness.EnableAnalogReporting(PIN_5V_SENSE)
-      time.sleep(0.5)
-      vmot = self._harness.analogRead(PIN_12V_SENSE) * COEFFICIENT_12V / 1024
-      print "vmotor: %s" % vmot
-      if vmot > EXPECTED_12V + TOLERANCE_12V:
-        raise BrainScanTestFailure("vmot too high: %s" % vmot)
-      elif vmot < EXPECTED_12V - TOLERANCE_12V:
+      start_time = time.time()
+      while time.time() < start_time + 1:
+        vmot = self._harness.analogRead(PIN_12V_SENSE) * COEFFICIENT_12V / 1024
+        print "vmotor: %s" % vmot
+        if vmot > EXPECTED_12V + TOLERANCE_12V:
+          raise BrainScanTestFailure("vmot too high: %s" % vmot)
+      if vmot < EXPECTED_12V - TOLERANCE_12V:
         raise BrainScanTestFailure("vmot too low: %s" % vmot)
 
-      vcc = self._harness.analogRead(PIN_5V_SENSE) * COEFFICIENT_5V / 1024
-      print "vcc: %s" % vcc
-      if vcc > EXPECTED_5V + TOLERANCE_5V:
-        raise BrainScanTestFailure("vcc too high: %s" % vcc)
-      elif vcc < EXPECTED_5V - TOLERANCE_5V:
+      start_time = time.time()
+      while time.time() < start_time + 1:
+        vcc = self._harness.analogRead(PIN_5V_SENSE) * COEFFICIENT_5V / 1024
+        print "vcc: %s" % vcc
+        if vcc > EXPECTED_5V + TOLERANCE_5V:
+          raise BrainScanTestFailure("vcc too high: %s" % vcc)
+      if vcc < EXPECTED_5V - TOLERANCE_5V:
         raise BrainScanTestFailure("vcc too low: %s" % vcc)
       self._harness.DisableAnalogReporting(PIN_12V_SENSE)
       self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
       # Test each stepper coil to ensure current below 0.7A
-      for axis in (BW_X_AXIS, BW_Y_AXIS, BW_Z_AXIS, BW_E_AXIS):
-        (coil_a, coil_b) = self.readAxisCurrent(axis)
-        if coil_a > 0.7:
-          raise BrainScanTestFailure("%s axis coil A current too high" % axis[NAME])
-        if coil_b > 0.7:
-          raise BrainScanTestFailure("%s axis coil B current too high" % axis[NAME])
+      start_time = time.time()
+      while time.time() < start_time + 2:
+        for axis in (BW_X_AXIS, BW_Y_AXIS, BW_Z_AXIS, BW_E_AXIS):
+          (coil_a, coil_b) = self.readAxisCurrent(axis)
+          if coil_a > 0.7:
+            raise BrainScanTestFailure("%s axis coil A current too high" % axis[NAME])
+          if coil_b > 0.7:
+            raise BrainScanTestFailure("%s axis coil B current too high" % axis[NAME])
 
     except:
       self._harness.digitalWrite(PIN_RELAY, 0) # slightly redundant, but safer
@@ -269,7 +274,7 @@ class BrainScan(object):
 
   def testExtruderTempSet(self, target, value, min, max):
     self.setExtruderPot(value)
-    time.sleep(0.25)
+    time.sleep(0.5)
     extruder_temp = target.readExtruderTemp()
     print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, extruder_temp)
     if not min < extruder_temp < max:
@@ -303,7 +308,7 @@ class BrainScan(object):
   
   def testBedTempSet(self, target, value, min, max):
     self.setBedPot(value)
-    time.sleep(0.25)
+    time.sleep(0.5)
     bed_temp = target.readBedTemp()
     print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, bed_temp)
     if not min < bed_temp < max:
@@ -469,22 +474,23 @@ class BrainScan(object):
     if bed_current < 10:
       raise BrainScanTestFailure("bed current too low: %s" % bed_current)
       
-    time.sleep(0.1)
+    time.sleep(0.25)
     self.testAxis(target, BW_X_AXIS)
-    time.sleep(0.1)
+    time.sleep(0.25)
     self.testAxis(target, BW_Y_AXIS)
-    time.sleep(0.1)
+    time.sleep(0.25)
     self.testAxis(target, BW_Z_AXIS)
-    time.sleep(0.1)
+    time.sleep(0.25)
     self.testAxis(target, BW_E_AXIS)
 
     target.assertExtruderHeat(True)
-    time.sleep(0.1)
-    extruder_current = self.readTargetCurrent() - idle_current
-    target.assertExtruderHeat(False)
-    print "extruder current: %s" % extruder_current
-    if extruder_current > 2.5:
-      raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
+    start_time = time.time()
+    while time.time() < start_time + 1:
+      extruder_current = self.readTargetCurrent() - idle_current
+      target.assertExtruderHeat(False)
+      print "extruder current: %s" % extruder_current
+      if extruder_current > 2.5:
+        raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
     if extruder_current < 1.5:
       raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
 
@@ -506,6 +512,8 @@ class Brainwave(object):
     self._target.EnableDigitalReporting(3)
     self._target.EnableDigitalReporting(4)
     self._target.EnableDigitalReporting(5)
+    
+    self._target.SetSamplingInterval(25)
 
     # Make sure things start off right (i.e. off)
     self.assertBedHeat(False)
