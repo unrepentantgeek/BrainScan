@@ -265,6 +265,7 @@ class BrainScan(object):
     time.sleep(0.25)
     if not target.readEndstop(axis):
       raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
+    self._harness.digitalWrite(endstop_pin, 0)
 
   def testExtruderTempSet(self, target, value, min, max):
     self.setExtruderPot(value)
@@ -289,7 +290,7 @@ class BrainScan(object):
       self.testExtruderTempSet(target, 0x09, 0.46, 0.49)
       self.testExtruderTempSet(target, 0x10, 0.60, 0.63)
       self.testExtruderTempSet(target, 0x20, 0.735, 0.76)
-      self.testExtruderTempSet(target, 0x30, 0.81, 0.84)
+      self.testExtruderTempSet(target, 0x30, 0.805, 0.84)
       self.testExtruderTempSet(target, 0x40, 0.84, 0.87)
       self.testExtruderTempSet(target, 0x50, 0.87, 0.90)
       self.testExtruderTempSet(target, 0x60, 0.89, 0.92)
@@ -323,7 +324,7 @@ class BrainScan(object):
       self.testBedTempSet(target, 0x09, 0.46, 0.49)
       self.testBedTempSet(target, 0x10, 0.60, 0.63)
       self.testBedTempSet(target, 0x20, 0.735, 0.76)
-      self.testBedTempSet(target, 0x30, 0.81, 0.84)
+      self.testBedTempSet(target, 0x30, 0.805, 0.84)
       self.testBedTempSet(target, 0x40, 0.84, 0.87)
       self.testBedTempSet(target, 0x50, 0.87, 0.90)
       self.testBedTempSet(target, 0x60, 0.89, 0.92)
