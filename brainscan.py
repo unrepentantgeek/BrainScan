@@ -276,7 +276,7 @@ class BrainScan(object):
 
   def testExtruderTemp(self, target):
     try:
-      self._target.EnableAnalogReporting(BW_PIN_E_TEMP)
+      target._target.EnableAnalogReporting(BW_PIN_E_TEMP)
       self.testExtruderTempSet(target, 0x00, 0.00, 0.04)
       self.testExtruderTempSet(target, 0x01, 0.10, 0.13)
       self.testExtruderTempSet(target, 0x02, 0.17, 0.20)
@@ -298,7 +298,7 @@ class BrainScan(object):
       self.testExtruderTempSet(target, 0x90, 0.92, 0.95)
       self.testExtruderTempSet(target, 0xff, 0.94, 1.00)
     finally:
-      self._target.DisableAnalogReporting(BW_PIN_E_TEMP)
+      target._target.DisableAnalogReporting(BW_PIN_E_TEMP)
   
   def testBedTempSet(self, target, value, min, max):
     self.setBedPot(value)
@@ -310,7 +310,7 @@ class BrainScan(object):
 
   def testBedTemp(self, target):
     try:
-      self._target.EnableAnalogReporting(BW_PIN_B_TEMP)
+      target._target.EnableAnalogReporting(BW_PIN_B_TEMP)
       self.testBedTempSet(target, 0x00, 0.00, 0.04)
       self.testBedTempSet(target, 0x01, 0.10, 0.13)
       self.testBedTempSet(target, 0x02, 0.17, 0.20)
@@ -332,7 +332,7 @@ class BrainScan(object):
       self.testBedTempSet(target, 0x90, 0.92, 0.95)
       self.testBedTempSet(target, 0xff, 0.94, 1.00)
     finally:
-      self._target.DisableAnalogReporting(BW_PIN_B_TEMP)
+      target._target.DisableAnalogReporting(BW_PIN_B_TEMP)
   
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
