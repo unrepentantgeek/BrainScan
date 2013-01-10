@@ -12,7 +12,8 @@ from datetime import datetime
 from subprocess import * 
 
 # BrainScan jig settings
-PORT = '/dev/ttyACM0'
+PORT = '/dev/ttyUSB0'
+#PORT = '/dev/ttyACM0'
 EXPECTED_12V = 12.25
 EXPECTED_5V = 5.04
 TOLERANCE_12V = 0.5
@@ -26,7 +27,7 @@ AVR_CMD = '/usr/bin/avrdude'
 AVRISP = 'avrispmkII'
 AVR_MCU = 'at90usb646'
 AVRDUDE = [AVR_CMD, '-p', AVR_MCU, '-c', AVRISP, '-P', 'usb']
-AVRDUDEBOOT = [AVR_CMD, '-p', AVR_MCU, '-c', 'avr109', '-P', '/dev/ttyACM1']
+AVRDUDEBOOT = [AVR_CMD, '-p', AVR_MCU, '-c', 'avr109', '-P', '/dev/ttyACM0']
 FUSES = ['-U', 'lfuse:w:0xde:m', '-U', 'hfuse:w:0x9b:m', '-U', 'efuse:w:0xf0:m']
 
 # Pin modes.
@@ -167,6 +168,8 @@ class BrainScan(object):
       self._harness.DisableAnalogReporting(PIN_12V_SENSE)
       self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
+      time.sleep(1) # wait for serial buffer to clean analog messages
+
       # Test each stepper coil to ensure current below 0.7A
       start_time = time.time()
       while time.time() < start_time + 2:
@@ -262,14 +265,17 @@ class BrainScan(object):
     else:
       raise BrainScanTestFailure("Trying to test non-existant Axis.")
 
+    # ensure at least one state transistion before testing
+    self._harness.digitalWrite(endstop_pin, 1)
+    time.sleep(0.25)
     self._harness.digitalWrite(endstop_pin, 0)
     time.sleep(0.25)
     if target.readEndstop(axis):
-      raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
+      raise BrainScanTestFailure("%s endstop read failure, failed to read LOW" % axis[NAME])
     self._harness.digitalWrite(endstop_pin, 1)
     time.sleep(0.25)
     if not target.readEndstop(axis):
-      raise BrainScanTestFailure("%s endstop read failure" % axis[NAME])
+      raise BrainScanTestFailure("%s endstop read failure, failed to read HIGH" % axis[NAME])
     self._harness.digitalWrite(endstop_pin, 0)
 
   def testExtruderTempSet(self, target, value, min, max):
@@ -453,27 +459,42 @@ class BrainScan(object):
     print "idle current: %s" % idle_current
     if idle_current > 0.2:
       raise BrainScanTestFailure("idle current too high: %s" % idle_current)
-    
+
     target.assertFan(True)
-    time.sleep(0.1)
-    fan_current = self.readTargetCurrent() - idle_current
+    start_time = time.time()
+    while time.time() < start_time + 1:
+      fan_current = self.readTargetCurrent() - idle_current
+      if fan_current > 0.2:
+        raise BrainScanTestFailure("fan current too high: %s" % fan_current)
+      time.sleep(0.1)
     target.assertFan(False)
-    print "fan current: %s" % fan_current
-    if fan_current > 0.15:
-      raise BrainScanTestFailure("fan current too high: %s" % fan_current)
     if fan_current < 0.08:
       raise BrainScanTestFailure("fan current too low: %s" % fan_current)
-    
+    print "fan current: %s" % fan_current
+
+    target.assertExtruderHeat(True)
+    start_time = time.time()
+    while time.time() < start_time + 1:
+      extruder_current = self.readTargetCurrent() - idle_current
+      if extruder_current > 2.5:
+        raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
+    target.assertExtruderHeat(False)
+    if extruder_current < 1.5:
+      raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
+    print "extruder current: %s" % extruder_current
+
     target.assertBedHeat(True)
-    time.sleep(0.1)
-    bed_current = self.readTargetCurrent() - idle_current
+    start_time = time.time()
+    while time.time() < start_time + 1:
+      bed_current = self.readTargetCurrent() - idle_current
+      if bed_current > 13:
+        raise BrainScanTestFailure("bed current too high: %s" % bed_current)
+      time.sleep(0.1)
     target.assertBedHeat(False)
-    print "bed current: %s" % bed_current
-    if bed_current > 13:
-      raise BrainScanTestFailure("bed current too high: %s" % bed_current)
     if bed_current < 10:
       raise BrainScanTestFailure("bed current too low: %s" % bed_current)
-      
+    print "bed current: %s" % bed_current
+
     time.sleep(0.25)
     self.testAxis(target, BW_X_AXIS)
     time.sleep(0.25)
@@ -482,17 +503,6 @@ class BrainScan(object):
     self.testAxis(target, BW_Z_AXIS)
     time.sleep(0.25)
     self.testAxis(target, BW_E_AXIS)
-
-    target.assertExtruderHeat(True)
-    start_time = time.time()
-    while time.time() < start_time + 1:
-      extruder_current = self.readTargetCurrent() - idle_current
-      target.assertExtruderHeat(False)
-      print "extruder current: %s" % extruder_current
-      if extruder_current > 2.5:
-        raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
-    if extruder_current < 1.5:
-      raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
 
     self.testEndstop(target, BW_X_AXIS)
     self.testEndstop(target, BW_Y_AXIS)
@@ -558,7 +568,7 @@ class Brainwave(object):
     """stepper driver steps on rising edge"""
     self._target.digitalWrite(axis[DIR], direction)
     self._target.digitalWrite(axis[STEP], 0)
-    time.sleep(0.01)  # do we need this sleep?
+    time.sleep(0.05)  # do we need this sleep?
     self._target.digitalWrite(axis[STEP], 1)
 
   def readEndstop(self, axis):
@@ -605,7 +615,7 @@ while not quit:
         print "Waiting for serial device to become available..."
         time.sleep(2)
         print "Connecting to target via Firmata protocol..."
-        target = Brainwave("/dev/ttyACM1")
+        target = Brainwave("/dev/ttyACM0")
 
         def test():
           scanner.runTestSuite(target)
