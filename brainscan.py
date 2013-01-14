@@ -62,8 +62,8 @@ PIN_GREEN = 10
 PIN_RED = 11
 PIN_E_POT_HIGH = 17
 PIN_E_POT_LOW = 16
-PIN_B_POT_HIGH = 12
-PIN_B_POT_LOW = 13
+PIN_B_POT_HIGH = 13
+PIN_B_POT_LOW = 12
 
 # jig analog pins
 PIN_12V_SENSE = 0
@@ -275,7 +275,7 @@ class BrainScan(object):
     """
 
   def testExtruderTempSet(self, target, min, max):
-    time.sleep(0.25)
+    time.sleep(0.5)
     extruder_temp = target.readExtruderTemp()
     print "testing bed temp, expecting between %s and %s, got %s" % (min, max, extruder_temp)
     if not min < extruder_temp < max:
@@ -304,7 +304,7 @@ class BrainScan(object):
       target._target.DisableAnalogReporting(BW_PIN_E_TEMP)
 
   def testBedTempSet(self, target, min, max):
-    time.sleep(0.25)
+    time.sleep(0.5)
     bed_temp = target.readBedTemp()
     print "testing bed temp, expecting between %s and %s, got %s" % (min, max, bed_temp)
     if not min < bed_temp < max:
