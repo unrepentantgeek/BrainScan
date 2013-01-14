@@ -49,11 +49,6 @@ DIGITAL = OUTPUT   # same as OUTPUT below
 SENSE_LSB = 0.00001
 SENSE_OHMS = 0.1
 
-# MCP4462 constants
-DIGITAL_POT = 0x2c
-EXT_POT_REG = 0
-BED_POT_REG = 7
-
 # jig digital pins
 PIN_Z_MIN = 2
 PIN_Y_MIN = 3
@@ -65,6 +60,10 @@ PIN_RELAY = 8
 PIN_BLUE = 9
 PIN_GREEN = 10
 PIN_RED = 11
+PIN_E_POT_HIGH = 17
+PIN_E_POT_LOW = 16
+PIN_B_POT_HIGH = 12
+PIN_B_POT_LOW = 13
 
 # jig analog pins
 PIN_12V_SENSE = 0
@@ -219,22 +218,6 @@ class BrainScan(object):
   def readReset(self):
     return self_harness.digitalRead(PIN_RESET)
 
-  def writeMCP4462Reg(self, address, reg, value):
-    """Write 9 bit value to given 4 bit register."""
-    byte0 = reg << 4 | (value >> 8 & 0x01) 
-    self._harness._i2c_device.I2CWrite(address, None, [byte0, value])
-
-  def readMCP4462Reg(self, address, reg):
-    """Read 9 bit value from 4 bit register."""
-    byte0 = reg << 4 | 0x0c
-    return self._harness._i2c_device.I2CRead(address, byte0, 2)
-
-  def setBedPot(self, value):
-    self.writeMCP4462Reg(DIGITAL_POT, BED_POT_REG, value)
-
-  def setExtruderPot(self, value):
-    self.writeMCP4462Reg(DIGITAL_POT, EXT_POT_REG, value)
-
   def readINA219Current(self, address, sense=SENSE_OHMS):
     reply = self._harness._i2c_device.I2CRead(address, 0x01, 2)
     assert type(reply) == list
@@ -277,78 +260,75 @@ class BrainScan(object):
       raise BrainScanTestFailure("%s endstop read failure, failed to read HIGH" % axis[NAME])
     self._harness.digitalWrite(endstop_pin, 0)
 
-  def testExtruderTempSet(self, target, value, min, max):
-    self.setExtruderPot(value)
-    time.sleep(0.5)
+    """
+    >>> target.readExtruderTemp()
+    0.9990234375
+    >>> scanner._harness.pinMode(16, OUTPUT)
+    >>> target.readExtruderTemp()
+    0.53125
+    >>> scanner._harness.pinMode(17, OUTPUT)
+    >>> target.readExtruderTemp()
+    0.4375
+    >>> scanner._harness.pinMode(16, INPUT)
+    >>> target.readExtruderTemp()
+    0.7060546875
+    """
+
+  def testExtruderTempSet(self, target, min, max):
     extruder_temp = target.readExtruderTemp()
-    print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, extruder_temp)
+    print "testing bed temp, expecting between %s and %s, got %s" % (min, max, extruder_temp)
     if not min < extruder_temp < max:
       raise BrainScanTestFailure("Extruder temp failure %s" % value)
 
   def testExtruderTemp(self, target):
-    print "Skipping extruder temp test"
-    return
     try:
       target._target.EnableAnalogReporting(BW_PIN_E_TEMP)
-      self.testExtruderTempSet(target, 0x00, 0.00, 0.04)
-      self.testExtruderTempSet(target, 0x01, 0.10, 0.13)
-      self.testExtruderTempSet(target, 0x02, 0.17, 0.20)
-      self.testExtruderTempSet(target, 0x03, 0.23, 0.26)
-      self.testExtruderTempSet(target, 0x04, 0.28, 0.31)
-      self.testExtruderTempSet(target, 0x05, 0.33, 0.36)
-      self.testExtruderTempSet(target, 0x06, 0.36, 0.39)
-      self.testExtruderTempSet(target, 0x07, 0.40, 0.43)
-      self.testExtruderTempSet(target, 0x08, 0.43, 0.46)
-      self.testExtruderTempSet(target, 0x09, 0.46, 0.49)
-      self.testExtruderTempSet(target, 0x10, 0.60, 0.63)
-      self.testExtruderTempSet(target, 0x20, 0.735, 0.76)
-      self.testExtruderTempSet(target, 0x30, 0.805, 0.84)
-      self.testExtruderTempSet(target, 0x40, 0.84, 0.87)
-      self.testExtruderTempSet(target, 0x50, 0.87, 0.90)
-      self.testExtruderTempSet(target, 0x60, 0.89, 0.92)
-      self.testExtruderTempSet(target, 0x70, 0.90, 0.93)
-      self.testExtruderTempSet(target, 0x80, 0.91, 0.94)
-      self.testExtruderTempSet(target, 0x90, 0.92, 0.95)
-      self.testExtruderTempSet(target, 0xff, 0.94, 1.00)
+      self._harness.pinMode(PIN_E_POT_HIGH, INPUT)
+      self._harness.pinMode(PIN_E_POT_LOW, INPUT)
+      self.testExtruderTempSet(target, 0.99, 1)
+
+      self._harness.pinMode(PIN_E_POT_HIGH, OUTPUT)
+      self._harness.pinMode(PIN_E_POT_LOW, INPUT)
+      self.testExtruderTempSet(target, 0.70, 0.71)
+
+      self._harness.pinMode(PIN_E_POT_HIGH, INPUT)
+      self._harness.pinMode(PIN_E_POT_LOW, OUTPUT)
+      self.testExtruderTempSet(target, 0.53, 0.54)
+
+      self._harness.pinMode(PIN_E_POT_HIGH, OUTPUT)
+      self._harness.pinMode(PIN_E_POT_LOW, OUTPUT)
+      self.testExtruderTempSet(target, 0.43, 0.44)
     finally:
       target._target.DisableAnalogReporting(BW_PIN_E_TEMP)
-  
-  def testBedTempSet(self, target, value, min, max):
-    self.setBedPot(value)
-    time.sleep(0.5)
+
+  def testBedTempSet(self, target, min, max):
     bed_temp = target.readBedTemp()
-    print "setting bed pot to %s, expecting between %s and %s, got %s" % (value, min, max, bed_temp)
+    print "testing bed temp, expecting between %s and %s, got %s" % (min, max, bed_temp)
     if not min < bed_temp < max:
       raise BrainScanTestFailure("Bed temp failure %s" % value)
 
   def testBedTemp(self, target):
-    print "Skipping bed temp test"
-    return
     try:
       target._target.EnableAnalogReporting(BW_PIN_B_TEMP)
-      self.testBedTempSet(target, 0x00, 0.00, 0.04)
-      self.testBedTempSet(target, 0x01, 0.10, 0.13)
-      self.testBedTempSet(target, 0x02, 0.17, 0.20)
-      self.testBedTempSet(target, 0x03, 0.23, 0.26)
-      self.testBedTempSet(target, 0x04, 0.28, 0.31)
-      self.testBedTempSet(target, 0x05, 0.33, 0.36)
-      self.testBedTempSet(target, 0x06, 0.36, 0.39)
-      self.testBedTempSet(target, 0x07, 0.40, 0.43)
-      self.testBedTempSet(target, 0x08, 0.43, 0.46)
-      self.testBedTempSet(target, 0x09, 0.46, 0.49)
-      self.testBedTempSet(target, 0x10, 0.60, 0.63)
-      self.testBedTempSet(target, 0x20, 0.735, 0.76)
-      self.testBedTempSet(target, 0x30, 0.805, 0.84)
-      self.testBedTempSet(target, 0x40, 0.84, 0.87)
-      self.testBedTempSet(target, 0x50, 0.87, 0.90)
-      self.testBedTempSet(target, 0x60, 0.89, 0.92)
-      self.testBedTempSet(target, 0x70, 0.90, 0.93)
-      self.testBedTempSet(target, 0x80, 0.91, 0.94)
-      self.testBedTempSet(target, 0x90, 0.92, 0.95)
-      self.testBedTempSet(target, 0xff, 0.94, 1.00)
+
+      self._harness.pinMode(PIN_B_POT_HIGH, INPUT)
+      self._harness.pinMode(PIN_B_POT_LOW, INPUT)
+      self.testBedTempSet(target, 0.99, 1)
+
+      self._harness.pinMode(PIN_B_POT_HIGH, OUTPUT)
+      self._harness.pinMode(PIN_B_POT_LOW, INPUT)
+      self.testBedTempSet(target, 0.70, 0.71)
+
+      self._harness.pinMode(PIN_B_POT_HIGH, INPUT)
+      self._harness.pinMode(PIN_B_POT_LOW, OUTPUT)
+      self.testBedTempSet(target, 0.53, 0.54)
+
+      self._harness.pinMode(PIN_B_POT_HIGH, OUTPUT)
+      self._harness.pinMode(PIN_B_POT_LOW, OUTPUT)
+      self.testBedTempSet(target, 0.43, 0.44)
     finally:
       target._target.DisableAnalogReporting(BW_PIN_B_TEMP)
-  
+
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
     print "Testing %s Axis" % axis[NAME]
