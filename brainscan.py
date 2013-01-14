@@ -275,6 +275,7 @@ class BrainScan(object):
     """
 
   def testExtruderTempSet(self, target, min, max):
+    time.sleep(0.25)
     extruder_temp = target.readExtruderTemp()
     print "testing bed temp, expecting between %s and %s, got %s" % (min, max, extruder_temp)
     if not min < extruder_temp < max:
@@ -283,7 +284,6 @@ class BrainScan(object):
   def testExtruderTemp(self, target):
     try:
       target._target.EnableAnalogReporting(BW_PIN_E_TEMP)
-      time.sleep(0.5)
 
       self._harness.pinMode(PIN_E_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_E_POT_LOW, INPUT)
@@ -304,6 +304,7 @@ class BrainScan(object):
       target._target.DisableAnalogReporting(BW_PIN_E_TEMP)
 
   def testBedTempSet(self, target, min, max):
+    time.sleep(0.25)
     bed_temp = target.readBedTemp()
     print "testing bed temp, expecting between %s and %s, got %s" % (min, max, bed_temp)
     if not min < bed_temp < max:
@@ -312,7 +313,6 @@ class BrainScan(object):
   def testBedTemp(self, target):
     try:
       target._target.EnableAnalogReporting(BW_PIN_B_TEMP)
-      time.sleep(0.5)
 
       self._harness.pinMode(PIN_B_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_B_POT_LOW, INPUT)
