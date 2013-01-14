@@ -50,7 +50,7 @@ SENSE_LSB = 0.00001
 SENSE_OHMS = 0.1
 
 # MCP4462 constants
-DIGITAL_POT = 0x2e
+DIGITAL_POT = 0x2c
 EXT_POT_REG = 0
 BED_POT_REG = 7
 
@@ -99,8 +99,7 @@ CCW = 1
 
 
 class BrainScanTestFailure(Exception):
-  def __init__(self, msg):
-    self.msg = msg
+  pass
 
 class BrainScan(object):
   _harness = None
@@ -287,6 +286,8 @@ class BrainScan(object):
       raise BrainScanTestFailure("Extruder temp failure %s" % value)
 
   def testExtruderTemp(self, target):
+    print "Skipping extruder temp test"
+    return
     try:
       target._target.EnableAnalogReporting(BW_PIN_E_TEMP)
       self.testExtruderTempSet(target, 0x00, 0.00, 0.04)
@@ -321,6 +322,8 @@ class BrainScan(object):
       raise BrainScanTestFailure("Bed temp failure %s" % value)
 
   def testBedTemp(self, target):
+    print "Skipping bed temp test"
+    return
     try:
       target._target.EnableAnalogReporting(BW_PIN_B_TEMP)
       self.testBedTempSet(target, 0x00, 0.00, 0.04)
@@ -568,7 +571,7 @@ class Brainwave(object):
     """stepper driver steps on rising edge"""
     self._target.digitalWrite(axis[DIR], direction)
     self._target.digitalWrite(axis[STEP], 0)
-    time.sleep(0.05)  # do we need this sleep?
+    #time.sleep(0.1)  # do we need this sleep?
     self._target.digitalWrite(axis[STEP], 1)
 
   def readEndstop(self, axis):
@@ -621,7 +624,8 @@ while not quit:
           scanner.runTestSuite(target)
         #scanner.runTestSuite(target)
         code.interact('type \'test()\' to run a test', local=locals())
-        quit = True
+        # TODO: we don't let go of the target's port between runs so we can't do more than one
+        #quit = True
         target._target.StopCommunications()
 
         # write bootloader
@@ -644,7 +648,7 @@ while not quit:
         scanner.setLEDColor(0xFF0000)
         #lcd.clear()
         #lcd.message(" Test Failure\n%s" % e.msg)
-        print e.msg
+        print e
         time.sleep(10)
     scanner._harness.StopCommunications()
   except subprocess.CalledProcessError:
