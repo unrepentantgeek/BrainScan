@@ -189,6 +189,7 @@ class BrainScan(object):
   def powerTargetDown(self):
     """Power down target board."""
     self._harness.digitalWrite(PIN_RELAY, 0)
+    self.idle_current = None
 
   def resetTarget(self):
     """Reset the target board."""
@@ -336,6 +337,7 @@ class BrainScan(object):
   def testAxis(self, target, axis):
     #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
     print "Testing %s Axis" % axis[NAME]
+    time.sleep(0.25)
     target.disableAxis(axis)
     (coil_a, coil_b) = self.readAxisCurrent(axis)
     if coil_a > 0.01:
@@ -409,7 +411,7 @@ class BrainScan(object):
     self._harness.pinMode(PIN_RESET, INPUT)
     if self._harness.digitalRead(PIN_RESET) is False:
       raise BrainScanTestFailure("RESET pin LOW when not pressed")
-    print "Please press the PROGRAM button"
+    print "Please press the RESET button"
     timeout = time.time() + 5
     count = 0
     while timeout > time.time():
@@ -441,56 +443,69 @@ class BrainScan(object):
     if timeout < time.time():
       raise BrainScanTestFailure("PROGRAM button test timed out")
     
-  def runTestSuite(self, target):
-    idle_current = self.readTargetCurrent()
-    print "idle current: %s" % idle_current
-    if idle_current > 0.2:
-      raise BrainScanTestFailure("idle current too high: %s" % idle_current)
+  def testIdleCurrent(self, target):
+    self.idle_current = self.readTargetCurrent()
+    print "idle current: %s" % self.idle_current
+    if self.idle_current > 0.2:
+      raise BrainScanTestFailure("idle current too high: %s" % self.idle_current)
 
+  def testFanCurrent(self, target):
     target.assertFan(True)
     start_time = time.time()
     while time.time() < start_time + 1:
-      fan_current = self.readTargetCurrent() - idle_current
+      fan_current = self.readTargetCurrent() - self.idle_current
       if fan_current > 0.2:
         raise BrainScanTestFailure("fan current too high: %s" % fan_current)
       time.sleep(0.1)
     target.assertFan(False)
     if fan_current < 0.08:
-      raise BrainScanTestFailure("fan current too low: %s" % fan_current)
+      ret = False
+      print "FAIL: fan current too low"
     print "fan current: %s" % fan_current
+    return ret
 
+  def testExtruderCurrent(self, target):
+    ret = True
     target.assertExtruderHeat(True)
     start_time = time.time()
     while time.time() < start_time + 1:
-      extruder_current = self.readTargetCurrent() - idle_current
+      extruder_current = self.readTargetCurrent() - self.idle_current
       if extruder_current > 2.5:
         raise BrainScanTestFailure("extruder current too high: %s" % extruder_current)
     target.assertExtruderHeat(False)
     if extruder_current < 1.5:
-      raise BrainScanTestFailure("extruder current too low: %s" % extruder_current)
+      ret = False
+      print "FAIL: extruder current too low"
     print "extruder current: %s" % extruder_current
+    return ret
 
+  def testBedCurrent(self, target):
     target.assertBedHeat(True)
     start_time = time.time()
     while time.time() < start_time + 1:
-      bed_current = self.readTargetCurrent() - idle_current
+      bed_current = self.readTargetCurrent() - self.idle_current
       if bed_current > 13:
         raise BrainScanTestFailure("bed current too high: %s" % bed_current)
       time.sleep(0.1)
     target.assertBedHeat(False)
     if bed_current < 10:
-      raise BrainScanTestFailure("bed current too low: %s" % bed_current)
+      ret = False
+      print "FAIL: bed current too low"
     print "bed current: %s" % bed_current
+    return ret
 
-    time.sleep(0.25)
+  def testAxes(self, target):
     self.testAxis(target, BW_X_AXIS)
-    time.sleep(0.25)
     self.testAxis(target, BW_Y_AXIS)
-    time.sleep(0.25)
     self.testAxis(target, BW_Z_AXIS)
-    time.sleep(0.25)
     self.testAxis(target, BW_E_AXIS)
 
+  def testIO(self, target):
+    self.testIdleCurrent(target)
+    self.testFanCurrent(target)
+    self.testExtruderCurrent(target)
+    self.testBedCurrent(target)
+    
     self.testEndstop(target, BW_X_AXIS)
     self.testEndstop(target, BW_Y_AXIS)
     self.testEndstop(target, BW_Z_AXIS)
@@ -605,10 +620,12 @@ while not quit:
         target = Brainwave("/dev/ttyACM0")
         #target = Brainwave("/dev/ttyACM1")
 
-        def test():
-          scanner.runTestSuite(target)
+        def testAxes():
+          scanner.testAxes(target)
+        def testIO():
+          scanner.testIO(target)
         #scanner.runTestSuite(target)
-        code.interact('type \'test()\' to run a test', local=locals())
+        code.interact('type \'testAxes()\' or \'testIO()\' to run a test', local=locals())
         # TODO: we don't let go of the target's port between runs so we can't do more than one
         #quit = True
         target._target.StopCommunications()
