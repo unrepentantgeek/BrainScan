@@ -150,7 +150,7 @@ class BrainScan(object):
       start_time = time.time()
       while time.time() < start_time + 1:
         vmot = self._harness.analogRead(PIN_12V_SENSE) * COEFFICIENT_12V / 1024
-        print "vmotor: %s" % vmot
+        #print "vmotor: %s" % vmot
         if vmot > EXPECTED_12V + TOLERANCE_12V:
           raise BrainScanTestFailure("vmot too high: %s" % vmot)
       if vmot < EXPECTED_12V - TOLERANCE_12V:
@@ -159,7 +159,7 @@ class BrainScan(object):
       start_time = time.time()
       while time.time() < start_time + 1:
         vcc = self._harness.analogRead(PIN_5V_SENSE) * COEFFICIENT_5V / 1024
-        print "vcc: %s" % vcc
+        #print "vcc: %s" % vcc
         if vcc > EXPECTED_5V + TOLERANCE_5V:
           raise BrainScanTestFailure("vcc too high: %s" % vcc)
       if vcc < EXPECTED_5V - TOLERANCE_5V:
@@ -450,6 +450,7 @@ class BrainScan(object):
       raise BrainScanTestFailure("idle current too high: %s" % self.idle_current)
 
   def testFanCurrent(self, target):
+    ret = True
     target.assertFan(True)
     start_time = time.time()
     while time.time() < start_time + 1:
@@ -480,6 +481,7 @@ class BrainScan(object):
     return ret
 
   def testBedCurrent(self, target):
+    ret = True
     target.assertBedHeat(True)
     start_time = time.time()
     while time.time() < start_time + 1:
