@@ -28,6 +28,7 @@ AVRISP = 'avrispmkII'
 AVR_MCU = 'at90usb646'
 AVRDUDE = [AVR_CMD, '-p', AVR_MCU, '-c', AVRISP, '-P', 'usb']
 AVRDUDEBOOT = [AVR_CMD, '-p', AVR_MCU, '-c', 'avr109', '-P', '/dev/ttyACM0']
+#AVRDUDEBOOT = [AVR_CMD, '-p', AVR_MCU, '-c', 'avr109', '-P', '/dev/ttyACM1']
 FUSES = ['-U', 'lfuse:w:0xde:m', '-U', 'hfuse:w:0x9b:m', '-U', 'efuse:w:0xf0:m']
 
 # Pin modes.
@@ -133,7 +134,7 @@ class BrainScan(object):
 
   def powerTargetOn(self):
     """Apply 12V to the target."""
-    
+
     try:
       self._harness.digitalWrite(PIN_RELAY, 1)
       start_time = time.time()
@@ -166,7 +167,7 @@ class BrainScan(object):
       self._harness.DisableAnalogReporting(PIN_12V_SENSE)
       self._harness.DisableAnalogReporting(PIN_5V_SENSE)
 
-      time.sleep(1) # wait for serial buffer to clean analog messages
+      time.sleep(1.5) # wait for serial buffer to clean analog messages
 
       # Test each stepper coil to ensure current below 0.7A
       start_time = time.time()
@@ -277,7 +278,7 @@ class BrainScan(object):
   def testExtruderTempSet(self, target, min, max):
     time.sleep(0.5)
     extruder_temp = target.readExtruderTemp()
-    print "testing bed temp, expecting between %s and %s, got %s" % (min, max, extruder_temp)
+    print "testing extruder temp, expecting between %s and %s, got %s" % (min, max, extruder_temp)
     if not min < extruder_temp < max:
       raise BrainScanTestFailure("Extruder temp failure")
 
@@ -287,19 +288,19 @@ class BrainScan(object):
 
       self._harness.pinMode(PIN_E_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_E_POT_LOW, INPUT)
-      self.testExtruderTempSet(target, 0.99, 1)
+      self.testExtruderTempSet(target, 0.98, 1)
 
       self._harness.pinMode(PIN_E_POT_HIGH, OUTPUT)
       self._harness.pinMode(PIN_E_POT_LOW, INPUT)
-      self.testExtruderTempSet(target, 0.70, 0.71)
+      self.testExtruderTempSet(target, 0.69, 0.73)
 
       self._harness.pinMode(PIN_E_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_E_POT_LOW, OUTPUT)
-      self.testExtruderTempSet(target, 0.53, 0.54)
+      self.testExtruderTempSet(target, 0.51, 0.56)
 
       self._harness.pinMode(PIN_E_POT_HIGH, OUTPUT)
       self._harness.pinMode(PIN_E_POT_LOW, OUTPUT)
-      self.testExtruderTempSet(target, 0.43, 0.44)
+      self.testExtruderTempSet(target, 0.41, 0.46)
     finally:
       target._target.DisableAnalogReporting(BW_PIN_E_TEMP)
 
@@ -316,19 +317,19 @@ class BrainScan(object):
 
       self._harness.pinMode(PIN_B_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_B_POT_LOW, INPUT)
-      self.testBedTempSet(target, 0.99, 1)
+      self.testBedTempSet(target, 0.98, 1)
 
       self._harness.pinMode(PIN_B_POT_HIGH, OUTPUT)
       self._harness.pinMode(PIN_B_POT_LOW, INPUT)
-      self.testBedTempSet(target, 0.70, 0.71)
+      self.testBedTempSet(target, 0.69, 0.73)
 
       self._harness.pinMode(PIN_B_POT_HIGH, INPUT)
       self._harness.pinMode(PIN_B_POT_LOW, OUTPUT)
-      self.testBedTempSet(target, 0.53, 0.54)
+      self.testBedTempSet(target, 0.51, 0.56)
 
       self._harness.pinMode(PIN_B_POT_HIGH, OUTPUT)
       self._harness.pinMode(PIN_B_POT_LOW, OUTPUT)
-      self.testBedTempSet(target, 0.43, 0.44)
+      self.testBedTempSet(target, 0.41, 0.46)
     finally:
       target._target.DisableAnalogReporting(BW_PIN_B_TEMP)
 
@@ -602,6 +603,7 @@ while not quit:
         time.sleep(2)
         print "Connecting to target via Firmata protocol..."
         target = Brainwave("/dev/ttyACM0")
+        #target = Brainwave("/dev/ttyACM1")
 
         def test():
           scanner.runTestSuite(target)
